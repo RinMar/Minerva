@@ -53,14 +53,14 @@ def delete_fact(fact_text: str, emb_model, user_name: str, memory_base_dir="loca
         all_edges = session.query(EmbeddingIndex.source_id, EmbeddingIndex.embedding_json).filter_by(
             user_name=user_name, collection="edge"
         ).all()
-        
+
         edges_to_delete = []
         for eid, emb_json in all_edges:
             emb = json.loads(emb_json)
             score = cosine_similarity(query_emb, emb)
             if score >= 0.85:
                 edges_to_delete.append(eid)
-                
+
         for eid in edges_to_delete:
             session.query(GraphEdge).filter_by(id=int(eid)).delete()
             session.query(EmbeddingIndex).filter_by(source_id=eid, collection="edge").delete()
@@ -68,7 +68,7 @@ def delete_fact(fact_text: str, emb_model, user_name: str, memory_base_dir="loca
 
         # 2. Remove fact text from any EntityNode that has it
         all_entities = session.query(EntityNode).filter_by(user_name=user_name).all()
-        
+
         for e in all_entities:
             lines = e.text.split('\n')
             new_lines = []
@@ -80,7 +80,7 @@ def delete_fact(fact_text: str, emb_model, user_name: str, memory_base_dir="loca
                 if fact_text.lower() in line.lower() or line.lower() in fact_text.lower():
                     changed = True
                     continue
-                
+
                 # Semantic match
                 line_emb = emb_model.encode(line).tolist()
                 score = cosine_similarity(query_emb, line_emb)
@@ -88,7 +88,7 @@ def delete_fact(fact_text: str, emb_model, user_name: str, memory_base_dir="loca
                     changed = True
                 else:
                     new_lines.append(line)
-                    
+
             if changed:
                 deleted_something = True
                 if not new_lines:
@@ -108,7 +108,7 @@ def delete_fact(fact_text: str, emb_model, user_name: str, memory_base_dir="loca
                         "text_content": e.text,
                         "embedding_json": json.dumps(emb)
                     })
-                    
+
         session.commit()
         return deleted_something
 
