@@ -49,6 +49,7 @@ def _upsert_entity(session, name: str, topic: str, text: str, tags: list, user_n
             embedding_json=json.dumps(emb)
         )
         session.add(new_emb)
+        session.flush()
 
     return eid
 
@@ -92,6 +93,8 @@ def add_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_na
                     user_name=user_name,
                     source_id=head_id,
                     target_id=tail_id,
+                    source_name=head,
+                    target_name=tail,
                     relation=relation
                 )
                 session.add(edge)

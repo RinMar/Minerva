@@ -44,6 +44,8 @@ class GraphEdge(Base):
     user_name = Column(String, index=True)
     source_id = Column(String(64), ForeignKey("entities.id", ondelete="CASCADE"))
     target_id = Column(String(64), ForeignKey("entities.id", ondelete="CASCADE"))
+    source_name = Column(String, index=True)
+    target_name = Column(String, index=True)
     relation = Column(String(255))
 
 

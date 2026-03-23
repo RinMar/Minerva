@@ -16,13 +16,13 @@ You have access to two tools: `retrieve` and `manage_memory`.
 2. `manage_memory`
    - Description: Remembers, updates, or deletes multiple facts about the user simultaneously.
    - Arguments: {
-       "store": [{"fact": "User is named Tom", "topic": "profile", "tags": ["identity", "name"]}],
-       "update": [{"old_fact": "user lives in paris", "new_fact": "user lives in london", "topic": "location", "tags": ["city"]}],
+       "store": [{"fact": "User is named Tom", "triplets": [{"head": "User", "type": "is named", "tail": "Tom"}], "topic": "profile", "tags": ["identity", "name"]}],
+       "update": [{"old_fact": "user lives in paris", "new_fact": "user lives in london", "triplets": [{"head": "user", "type": "lives in", "tail": "london"}], "topic": "location", "tags": ["city"]}],
        "delete": ["user dislikes pizza"]
      }
    - Usage: Proactively save new facts. When the user tells you multiple facts in one message, process ALL of them at once. YOU MUST PHYSICALLY CALL `retrieve` FIRST to check for existing facts. NEVER rely on your chat history to assume what is in the database. 
-     * **Store**: Use for completely new information or distinct new facts. Give an overarching `topic` and specific `tags` referencing the entities.
-     * **Update**: Use when a fact is superseded, contradicted, OR when adding context/detail to an existing fact (e.g., if the user says "My dog is 5", you can update "User has a dog" to "User has a 5-year-old dog"). If you are unsure whether new info contradicts or adds to an existing fact, ASK the user for clarification before updating.
+     * **Store**: Use for completely new information or distinct new facts. You MUST generate the exact 'triplets' (head, type, tail) for the knowledge graph context. Give an overarching `topic` and specific `tags` referencing the entities.
+     * **Update**: Use when a fact is superseded, contradicted, OR when adding context/detail to an existing fact. Include the new 'triplets'. If unsure, ASK the user for clarification before updating.
      * **Delete**: To remove completely obsolete data.
 
 ## Tool Execution Mechanism
@@ -63,7 +63,7 @@ Assistant: <think>
 The database has no info. I will explicitly state I don't know their location, and then use `manage_memory` to store the new facts about Rufus and the color blue.
 </think>
 <tool>
-{"name": "manage_memory", "arguments": {"store": [{"fact": "User has a dog named Rufus", "topic": "pets", "tags": ["animal"]}, {"fact": "User's favorite color is blue", "topic": "preferences", "tags": ["color"]}], "update": [], "delete": []}}
+{"name": "manage_memory", "arguments": {"store": [{"fact": "User has a dog named Rufus", "triplets": [{"head": "User", "type": "owns", "tail": "dog"}, {"head": "dog", "type": "is named", "tail": "Rufus"}], "topic": "pets", "tags": ["animal"]}, {"fact": "User's favorite color is blue", "triplets": [{"head": "User", "type": "favorite color", "tail": "blue"}], "topic": "preferences", "tags": ["color"]}], "update": [], "delete": []}}
 </tool>
 
 User: Tool execution result:
@@ -117,6 +117,7 @@ User message: {user_msg}"""
 
 user_fact_extraction_prompt = """Extract NEW factual information from the following USER message.
 A valid fact is a DECLARATIVE STATEMENT where the user reveals something persistent about themselves.
+Whenever possible, phrase the text as a clear, objective Wikipedia-like declarative sentence to make relationships between entities explicit.
 
 For the "topic" field, use BROAD, reusable category names that group related facts together.
 Good topics: "profile", "hobbies", "work", "relationships", "preferences"
@@ -214,3 +215,4 @@ Keep your <think> block EXTREMELY short (1 sentence max) or omit it entirely. Ou
   {{"id": "existing_fact_id_here", "source_entity": "Subject", "target_entity": "Object", "relation": "relationship description"}}
 ]
 """
+

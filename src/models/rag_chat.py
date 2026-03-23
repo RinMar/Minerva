@@ -77,8 +77,9 @@ class RAGChat(ChatLlm):
         for fact_obj in stores:
             topic = fact_obj.get("topic", "general")
             fact = fact_obj.get("fact", "")
+            triplets = fact_obj.get("triplets", [])
             if fact:
-                self.orchestrator.trigger_store(topic, fact)
+                self.orchestrator.trigger_store(topic, fact, triplets=triplets)
                 count += 1
 
         for fact_obj in updates:

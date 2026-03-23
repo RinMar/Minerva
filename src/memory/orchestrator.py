@@ -15,11 +15,12 @@ class MemoryOrchestrator:
         self.cross_encoder = cross_encoder
         self._pending_facts = []
 
-    def trigger_store(self, topic: str, fact: str = "", old_fact: str = "", new_fact: str = "", action: str = "store"):
+    def trigger_store(self, topic: str, fact: str = "", old_fact: str = "", new_fact: str = "", action: str = "store", triplets: list = None):
         """Queue a memory operation to be processed."""
         item = {"action": action, "topic": topic}
         if action == "store":
             item["text"] = fact
+            item["triplets"] = triplets
         elif action == "update":
             item["old_fact"] = old_fact
             item["new_fact"] = new_fact
@@ -27,8 +28,8 @@ class MemoryOrchestrator:
             item["text"] = fact
         self._pending_facts.append(item)
 
-    def trigger_update_fact(self, topic: str, old_fact: str, new_fact: str):
-        self._pending_facts.append({"action": "update", "topic": topic, "old_fact": old_fact, "new_fact": new_fact})
+    def trigger_update_fact(self, topic: str, old_fact: str, new_fact: str, triplets: list = None):
+        self._pending_facts.append({"action": "update", "topic": topic, "old_fact": old_fact, "new_fact": new_fact, "triplets": triplets})
 
     def trigger_delete_fact(self, fact: str):
         self._pending_facts.append({"action": "delete", "text": fact})
@@ -71,12 +72,15 @@ class MemoryOrchestrator:
         if "text" in fact and not text:
             text = fact["text"]
         tags = fact.get("tags", ["tool_stored"])
+        triplets = fact.get("triplets", [])
 
         if not text:
             return
 
-        print(f"[Orchestrator] Extracting triplets for fact: {text}")
-        triplets = extract_triplets(text)
+        if not triplets:
+            print(f"[Orchestrator] Extracting triplets for fact: {text}")
+            triplets = extract_triplets(text)
+        
         print(f"[Orchestrator] Extracted {len(triplets)} triplets")
 
         added = graph_manager.add_triplets(
