@@ -41,16 +41,76 @@ def _find_closest_entity(session, text: str, emb_model, user_name: str, threshol
 
 def delete_fact(fact_text: str, emb_model, user_name: str, memory_base_dir="local_store"):
     """
-    Delete an entity from the database entirely, using semantic similarity to find it.
+    Delete a fact from the database entirely.
+    Removes the most similar edge and removes the exact or highly similar text from EntityNodes.
     """
+    import json
     with get_session() as session:
-        target_eid = _find_closest_entity(session, fact_text, emb_model, user_name)
-        if target_eid:
-            deleted = session.query(EntityNode).filter_by(id=target_eid).delete()
-            session.query(EmbeddingIndex).filter_by(source_id=target_eid, collection="entity").delete()
-            session.commit()
-            return deleted > 0
-    return False
+        query_emb = emb_model.encode(fact_text).tolist()
+        deleted_something = False
+
+        # 1. Find and delete the most similar edge (threshold 0.85)
+        all_edges = session.query(EmbeddingIndex.source_id, EmbeddingIndex.embedding_json).filter_by(
+            user_name=user_name, collection="edge"
+        ).all()
+        
+        edges_to_delete = []
+        for eid, emb_json in all_edges:
+            emb = json.loads(emb_json)
+            score = cosine_similarity(query_emb, emb)
+            if score >= 0.85:
+                edges_to_delete.append(eid)
+                
+        for eid in edges_to_delete:
+            session.query(GraphEdge).filter_by(id=int(eid)).delete()
+            session.query(EmbeddingIndex).filter_by(source_id=eid, collection="edge").delete()
+            deleted_something = True
+
+        # 2. Remove fact text from any EntityNode that has it
+        all_entities = session.query(EntityNode).filter_by(user_name=user_name).all()
+        
+        for e in all_entities:
+            lines = e.text.split('\n')
+            new_lines = []
+            changed = False
+            for line in lines:
+                if not line.strip():
+                    continue
+                # Substring match
+                if fact_text.lower() in line.lower() or line.lower() in fact_text.lower():
+                    changed = True
+                    continue
+                
+                # Semantic match
+                line_emb = emb_model.encode(line).tolist()
+                score = cosine_similarity(query_emb, line_emb)
+                if score >= 0.85:
+                    changed = True
+                else:
+                    new_lines.append(line)
+                    
+            if changed:
+                deleted_something = True
+                if not new_lines:
+                    session.delete(e)
+                    session.query(EmbeddingIndex).filter_by(source_id=e.id, collection="entity").delete()
+                    # Delete attached edges manually since no CASCADE enforced
+                    attached_edges = session.query(GraphEdge).filter(
+                        (GraphEdge.source_id == e.id) | (GraphEdge.target_id == e.id)
+                    ).all()
+                    for edge in attached_edges:
+                        session.delete(edge)
+                        session.query(EmbeddingIndex).filter_by(source_id=str(edge.id), collection="edge").delete()
+                else:
+                    e.text = '\n'.join(new_lines)
+                    emb = emb_model.encode(e.text).tolist()
+                    session.query(EmbeddingIndex).filter_by(source_id=e.id, collection="entity").update({
+                        "text_content": e.text,
+                        "embedding_json": json.dumps(emb)
+                    })
+                    
+        session.commit()
+        return deleted_something
 
 
 def _rerank(cross_encoder, query_text: str, candidates: list,
