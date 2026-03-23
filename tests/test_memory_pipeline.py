@@ -78,13 +78,51 @@ class TestMemoryPipeline(unittest.TestCase):
         """Test fact deletion functionality."""
         triplets = [{"head": "OldIdea", "type": "is", "tail": "bad"}]
         add_triplets(triplets, "misc", ["test"], "To be deleted.", self.user_name, embedding_model)
+
+        # Verify it went in
+        with get_session() as session:
+            count = session.query(EntityNode).filter(EntityNode.name == "OldIdea").count()
+            self.assertEqual(count, 1)
+            edges = session.query(GraphEdge).count()
+            self.assertEqual(edges, 1)
+
+        # Delete it via store
         delete_fact("To be deleted.", embedding_model, self.user_name)
 
+        # Verify entity text is gone, and since it was the only text, the entity itself should drop
         with get_session() as session:
-            count = session.query(EntityNode).filter(
-                EntityNode.name == "OldIdea"
-            ).count()
+            count = session.query(EntityNode).filter(EntityNode.name == "OldIdea").count()
             self.assertEqual(count, 0)
+            edges = session.query(GraphEdge).count()
+            self.assertEqual(edges, 0)
+
+    def test_update_fact_removes_old_edges(self):
+        """Test that updating a fact removes old edges correctly without deleting the entity."""
+        triplets_old = [{"head": "User", "type": "lives in", "tail": "Paris"}]
+        add_triplets(triplets_old, "location", ["city"], "User lives in Paris.", self.user_name, embedding_model)
+
+        # Add another unrelated fact to same entity to keep it alive
+        triplets_keep = [{"head": "User", "type": "likes", "tail": "coffee"}]
+        add_triplets(triplets_keep, "preference", ["food"], "User likes coffee.", self.user_name, embedding_model)
+
+        with get_session() as session:
+            self.assertEqual(session.query(GraphEdge).count(), 2)
+            user_node = session.query(EntityNode).filter_by(name="User").first()
+            self.assertIn("lives in Paris", user_node.text)
+
+        # "Update" by deleting old fact text
+        delete_fact("User lives in Paris", embedding_model, self.user_name)
+
+        with get_session() as session:
+            # The edge for Paris should be gone, coffee remains (1 edge left)
+            self.assertEqual(session.query(GraphEdge).count(), 1)
+            self.assertEqual(session.query(GraphEdge).first().relation, "likes")
+
+            # The User node should still exist because coffee kept it alive
+            user_node = session.query(EntityNode).filter_by(name="User").first()
+            self.assertIsNotNone(user_node)
+            self.assertNotIn("lives in Paris", user_node.text)
+            self.assertIn("likes coffee", user_node.text)
 
     def test_graph_manager__add_and_expand_nodes(self):
         """Test that the graph edges are created and traversed successfully."""
