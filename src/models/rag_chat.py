@@ -1,3 +1,8 @@
+"""
+RAG-enabled chat interface.
+Used to extend the base conversational LLM to provide active memory capabilities,
+intercepting tool calls mid-stream to fetch and store knowledge natively.
+"""
 from src.models.base_llm import CustomLLM
 from src.models.chat_llm import ChatLlm
 from src.models.embeddings import embedding_model, reranker_model

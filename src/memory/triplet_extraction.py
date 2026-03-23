@@ -1,3 +1,8 @@
+"""
+Triplet extraction using Rebel.
+Used to parse unstructured text into structured subject-relation-object triplets
+for the knowledge graph.
+"""
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 

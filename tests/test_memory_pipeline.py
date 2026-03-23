@@ -1,3 +1,8 @@
+"""
+Tests for the memory pipeline.
+Used to ensure that facts are correctly ingested, stored, retrieved, and deleted
+by the orchestrator and database layers.
+"""
 import unittest
 from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
@@ -5,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from src.memory.context_store import delete_fact
 from src.memory.graph_manager import add_triplets, expand_nodes
 from src.memory.db import get_session, Base
-from src.memory.schema import EntityNode, GraphEdge
+from src.memory.db import EntityNode, GraphEdge
 from src.memory.orchestrator import MemoryOrchestrator
 from src.models.embeddings import embedding_model
 import src.memory.db as db_module

@@ -10,6 +10,13 @@ When conversing, the LLM is equipped with advanced `<think>` capabilities and tw
 - **Active Retrieval (`retrieve`)**: Minerva natively indexes all your facts into a local SQLite database and vector index, bridged via an Entity Knowledge Graph. When you ask a question about your past or personal life, Minerva pauses text generation, calls the retrieval tool via XML tags, fetches semantic matches and topological `FactEdge` neighbors, and seamlessly injects the context back into the conversation thread to synthesize a perfect response.
 - **Asynchronous Storage (`manage_memory`)**: Whenever Minerva learns new facts about you (or old facts change) during a chat, she proactively issues a multi-element JSON array payload to store, update, or delete them. To prevent UI lockup, the facts are securely queued. At the end of the generator stream, a background `MemoryOrchestrator` thread automatically handles computing vector embeddings, performing fuzzy string resolutions, and distilling logical `FactEdge` relationships between historical nodes using specialized LLM extraction models.
 
+## Core Modules
+- **`src.config`**: Centralized configuration and prompt schema loading.
+- **`src.utils`**: General utility functions like semantic similarities and standardized short-ID generation.
+- **`src.memory.db`**: Unified SQLAlchemy ORM layer handling both active DB connections and schema models (`EntityNode`, `GraphEdge`, `EmbeddingIndex`).
+- **`src.memory.orchestrator`**: Background queue manager dealing with the dense extraction/graph expansion work off the main thread.
+- **`src.models.rag_chat`**: The intelligent conversation interceptor acting as the application entry point.
+
 ## Installation
 
 Ensure you have a modern GPU and Python 3.10+ installed.

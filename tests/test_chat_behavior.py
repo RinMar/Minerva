@@ -1,3 +1,7 @@
+"""
+Tests for conversational behavior.
+Used to verify that the chat interface and model mock functionality work as expected.
+"""
 import unittest
 from unittest.mock import MagicMock
 from sqlalchemy import create_engine
@@ -6,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from src.models.rag_chat import RAGChat
 from src.memory.db import Base
 import src.memory.db as db_module
-from src.memory.schema import EntityNode, GraphEdge
+from src.memory.db import EntityNode, GraphEdge
 from src.memory.graph_manager import add_triplets
 from src.models.embeddings import embedding_model
 from sqlalchemy.pool import StaticPool

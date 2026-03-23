@@ -1,8 +1,13 @@
+"""
+Graph operations manager for knowledge storage.
+Used to perform upserts of entity nodes, connect extraction triplets as graph edges,
+and traverse the relationship graph during context retrieval.
+"""
 import json
 from collections import deque
-from src.memory.schema import EntityNode, GraphEdge, EmbeddingIndex
+from src.memory.db import EntityNode, GraphEdge, EmbeddingIndex
 from src.memory.db import get_session
-from src.memory.hash_utils import fact_id
+from src.utils import fact_id
 
 
 def _upsert_entity(session, name: str, topic: str, text: str, tags: list, user_name: str, emb_model):

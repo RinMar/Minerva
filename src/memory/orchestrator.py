@@ -1,5 +1,7 @@
 """
 Memory orchestrator — background storage pipeline.
+Used to provide non-blocking asynchronous processing of facts and memory graph updates
+so the main chat interface remains responsive.
 """
 
 import threading
