@@ -13,42 +13,9 @@ RETRIEVAL:
 
 import json
 from src.utils import cosine_similarity
-from src.memory.hash_utils import fact_id
 from src.memory import graph_manager
 from src.memory.db import get_session
-from src.memory.schema import EntityNode, EmbeddingIndex, GraphEdge
-
-
-def ensure_user_profile(user_name: str, emb_model):
-    """
-    Ensure the base profile Entity exists for the user.
-    """
-    user_fact_text = f"The user's name is {user_name}."
-    eid = fact_id("user")
-
-    with get_session() as session:
-        existing = session.query(EntityNode).filter_by(id=eid, user_name=user_name).first()
-        if not existing:
-            emb = emb_model.encode(user_fact_text).tolist()
-            new_entity = EntityNode(
-                id=eid,
-                user_name=user_name,
-                name="user",
-                topic="profile",
-                text=user_fact_text,
-                tags_json=json.dumps(["identity", "profile"])
-            )
-            session.add(new_entity)
-
-            new_emb = EmbeddingIndex(
-                user_name=user_name,
-                collection="entity",
-                source_id=eid,
-                text_content=user_fact_text,
-                embedding_json=json.dumps(emb)
-            )
-            session.add(new_emb)
-            session.commit()
+from src.memory.db import EntityNode, EmbeddingIndex, GraphEdge
 
 
 def _find_closest_entity(session, text: str, emb_model, user_name: str, threshold: float = 0.85) -> str:

@@ -1,5 +1,4 @@
 sentence-transformers
-huggingface-hub
 scikit-learn
 toml
 json_repair

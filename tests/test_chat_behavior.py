@@ -1,3 +1,7 @@
+"""
+Tests for conversational behavior.
+Used to verify that the chat interface and model mock functionality work as expected.
+"""
 import unittest
 from unittest.mock import MagicMock
 from sqlalchemy import create_engine
@@ -6,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from src.models.rag_chat import RAGChat
 from src.memory.db import Base
 import src.memory.db as db_module
-from src.memory.schema import EntityNode, GraphEdge
+from src.memory.db import EntityNode, GraphEdge
 from src.memory.graph_manager import add_triplets
 from src.models.embeddings import embedding_model
 from sqlalchemy.pool import StaticPool
@@ -91,7 +95,8 @@ class TestChatBehavior(unittest.TestCase):
             yield "<tool>\n"
             payload = (
                 '{"name": "manage_memory", "arguments": '
-                '{"store": [{"topic": "hobbies", "fact": "user likes tennis", "tags": ["sport"]}]}}\n'
+                '{"store": [{"topic": "hobbies", "fact": "user likes tennis", "tags": ["sport"], '
+                '"triplets": [{"head": "user", "type": "likes", "tail": "tennis"}]}]}}\n'
             )
             yield payload
             yield "</tool>"
@@ -107,7 +112,9 @@ class TestChatBehavior(unittest.TestCase):
         list(chat.generate("I like tennis.", stream=True))
 
         # Verify the orchestrator was triggered securely
-        chat.orchestrator.trigger_store.assert_called_once_with("hobbies", "user likes tennis")
+        chat.orchestrator.trigger_store.assert_called_once_with(
+            "hobbies", "user likes tennis", triplets=[{"head": "user", "type": "likes", "tail": "tennis"}]
+        )
 
     def test_chat_api_send_message(self):
         """Test the public Chat API promise from the README."""

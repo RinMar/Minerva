@@ -1,3 +1,8 @@
+"""
+Main interactive chat interface for Minerva.
+Used to provide the terminal-based REPL for interacting with the assistant,
+and to expose the `Chat` wrapper class for API usage.
+"""
 from src.models.rag_chat import RAGChat
 from src.memory.db import init_db
 

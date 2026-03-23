@@ -1,3 +1,8 @@
+"""
+Embedding models initialization.
+Used to load and provide sentence-transformers and cross-encoder models
+for vectorization and reranking during context retrieval.
+"""
 import torch
 from sentence_transformers import SentenceTransformer, CrossEncoder
 

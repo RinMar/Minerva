@@ -1,3 +1,8 @@
+"""
+Base LLM wrapper.
+Used to manage the underlying llama.cpp model lifecycle and provide thread-safe
+text generation and streaming capabilities.
+"""
 import threading
 from llama_cpp import Llama
 import re

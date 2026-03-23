@@ -1,4 +1,8 @@
-from src.models.prompt_loader import PROMPTS
+"""
+Conversational LLM interface.
+Used to handle multi-turn chat history, system prompts, and XML-based tool call interception natively.
+"""
+from src.config import PROMPTS
 
 
 class ChatLlm:

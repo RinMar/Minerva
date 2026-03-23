@@ -1,3 +1,8 @@
+"""
+Configuration management module.
+Used to load and parse configuration variables such as model hyperparameters
+from config.toml, and to provide the PROMPTS dictionary for system instructions.
+"""
 import os
 
 try:
@@ -39,3 +44,7 @@ def load_config():
 
 
 config = load_config()
+
+PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "models", "prompts.toml")
+with open(PROMPTS_PATH, "rb") as f:
+    PROMPTS = tomllib.load(f)
