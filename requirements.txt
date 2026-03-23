@@ -1,0 +1,12 @@
+sentence-transformers
+huggingface-hub
+scikit-learn
+toml
+json_repair
+sqlalchemy
+pytest
+
+llama-cpp-python
+numpy
+torch
+transformers
