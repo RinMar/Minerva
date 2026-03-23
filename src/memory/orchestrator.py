@@ -15,7 +15,8 @@ class MemoryOrchestrator:
         self.cross_encoder = cross_encoder
         self._pending_facts = []
 
-    def trigger_store(self, topic: str, fact: str = "", old_fact: str = "", new_fact: str = "", action: str = "store", triplets: list = None):
+    def trigger_store(self, topic: str, fact: str = "", old_fact: str = "",
+                      new_fact: str = "", action: str = "store", triplets: list = None):
         """Queue a memory operation to be processed."""
         item = {"action": action, "topic": topic}
         if action == "store":
@@ -29,7 +30,9 @@ class MemoryOrchestrator:
         self._pending_facts.append(item)
 
     def trigger_update_fact(self, topic: str, old_fact: str, new_fact: str, triplets: list = None):
-        self._pending_facts.append({"action": "update", "topic": topic, "old_fact": old_fact, "new_fact": new_fact, "triplets": triplets})
+        self._pending_facts.append({"action": "update", "topic": topic,
+                                    "old_fact": old_fact, "new_fact": new_fact,
+                                    "triplets": triplets})
 
     def trigger_delete_fact(self, fact: str):
         self._pending_facts.append({"action": "delete", "text": fact})
@@ -80,7 +83,7 @@ class MemoryOrchestrator:
         if not triplets:
             print(f"[Orchestrator] Extracting triplets for fact: {text}")
             triplets = extract_triplets(text)
-        
+
         print(f"[Orchestrator] Extracted {len(triplets)} triplets")
 
         added = graph_manager.add_triplets(
