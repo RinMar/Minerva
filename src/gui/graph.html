@@ -78,6 +78,20 @@
             line-height: 1.5;
             animation: fadeIn 0.25s ease;
             word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .thinking-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            opacity: 0.8;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
         }
 
         @keyframes fadeIn {
@@ -306,6 +320,72 @@
             div.className = 'msg ' + role;
             div.textContent = text;
             container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // ── Streaming support ──
+        var currentMessageDiv = null;
+        var currentTextDiv = null;
+        var thinkingIcon = null;
+
+        function startAssistantMessage() {
+            var container = document.getElementById('chat-messages');
+            currentMessageDiv = document.createElement('div');
+            currentMessageDiv.className = 'msg assistant';
+            
+            thinkingIcon = document.createElement('div');
+            thinkingIcon.className = 'thinking-icon';
+            thinkingIcon.innerHTML = '🤔 <i>Thinking...</i>';
+            thinkingIcon.style.display = 'none';
+            thinkingIcon.style.color = '#a78bfa';
+            thinkingIcon.style.fontSize = '12px';
+            thinkingIcon.style.marginBottom = '6px';
+            currentMessageDiv.appendChild(thinkingIcon);
+            
+            currentTextDiv = document.createElement('div');
+            currentMessageDiv.appendChild(currentTextDiv);
+            
+            container.appendChild(currentMessageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function appendAssistantToken(token) {
+            if (currentTextDiv) {
+                currentTextDiv.appendChild(document.createTextNode(token));
+                var container = document.getElementById('chat-messages');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function setAssistantState(state) {
+            if (state === 'think_start') {
+                if (thinkingIcon) {
+                    thinkingIcon.innerHTML = '🤔 <i>Thinking...</i>';
+                    thinkingIcon.style.display = 'inline-flex';
+                }
+            } else if (state.startsWith('action_start_')) {
+                var tool = state.replace('action_start_', '');
+                if (thinkingIcon) {
+                    if (tool === 'retrieve') {
+                        thinkingIcon.innerHTML = '🔍 <i>Retrieving knowledge...</i>';
+                    } else if (tool === 'manage_memory') {
+                        thinkingIcon.innerHTML = '💾 <i>Updating memory...</i>';
+                    } else {
+                        thinkingIcon.innerHTML = '⚙️ <i>Executing tool (' + tool + ')...</i>';
+                    }
+                    thinkingIcon.style.display = 'inline-flex';
+                }
+            } else if (state === 'think_end' || state === 'action_end' || state === 'done') {
+                if (thinkingIcon) {
+                    thinkingIcon.style.display = 'none';
+                }
+                if (state === 'done') {
+                    currentMessageDiv = null;
+                    currentTextDiv = null;
+                    thinkingIcon = null;
+                }
+            }
+            var container = document.getElementById('chat-messages');
             container.scrollTop = container.scrollHeight;
         }
 
