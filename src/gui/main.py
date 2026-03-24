@@ -25,6 +25,10 @@ class Bridge(QObject):
     # Signal to safely push text to UI from background threads
     response_ready = Signal(str)
 
+    stream_start = Signal()
+    stream_token = Signal(str)
+    stream_state = Signal(str)
+
     def __init__(self, page, user_name="user"):
         super().__init__()
         self.page = page
@@ -33,6 +37,9 @@ class Bridge(QObject):
 
         # Connect signal → slot for thread-safe UI updates
         self.response_ready.connect(self._push_assistant_message)
+        self.stream_start.connect(self._push_stream_start)
+        self.stream_token.connect(self._push_stream_token)
+        self.stream_state.connect(self._push_stream_state)
 
     @Slot(str)
     def send_message(self, message):
@@ -43,22 +50,150 @@ class Bridge(QObject):
         thread = threading.Thread(target=self._generate_response, args=(message,), daemon=True)
         thread.start()
 
+    def _parse_buffer_chunk(self, buffer, is_thinking):
+        """Parse a chunk of the buffer according to the current state."""
+        if is_thinking:
+            return self._parse_thinking_chunk(buffer)
+        return self._parse_normal_chunk(buffer)
+
+    def _parse_normal_chunk(self, buffer):
+        """Parse a chunk when not in thinking mode."""
+        # Handle <think> -> enter thinking mode
+        if "<think>" in buffer:
+            return self._handle_tag(buffer, "<think>", "think_start", True)
+
+        # Handle stray </think> in non-thinking mode (silently consume)
+        if "</think>" in buffer:
+            return self._handle_tag(buffer, "</think>", None, False)
+
+        # Handle <action:TOOL> start tags
+        match = re.search(r'<action:([^>]+)>', buffer)
+        if match:
+            return self._handle_regex_tag(buffer, match, f"action_start_{match.group(1)}", False)
+
+        # Handle </action:TOOL> end tags
+        match_end = re.search(r'</action:([^>]+)>', buffer)
+        if match_end:
+            return self._handle_regex_tag(buffer, match_end, "action_end", False)
+
+        return self._handle_normal_content(buffer)
+
+    def _handle_tag(self, buffer, tag, state_event, new_is_thinking):
+        """Helper to handle exact string tags."""
+        pre, post = buffer.split(tag, 1)
+        if pre:
+            self.stream_token.emit(pre)
+        if state_event:
+            self.stream_state.emit(state_event)
+        return post, new_is_thinking, False
+
+    def _handle_regex_tag(self, buffer, match, state_event, new_is_thinking):
+        """Helper to handle regex-based tags."""
+        pre = buffer[:match.start()]
+        if pre:
+            self.stream_token.emit(pre)
+        if state_event:
+            self.stream_state.emit(state_event)
+        return buffer[match.end():], new_is_thinking, False
+
+    def _handle_normal_content(self, buffer):
+        """Handle content that contains partial tags or normal text."""
+        if "<" not in buffer:
+            self.stream_token.emit(buffer)
+            return "", False, False
+
+        last_lt = buffer.rfind("<")
+        prefix = buffer[last_lt:]
+
+        partial_tags = ["<think>", "</think>", "<action:", "</action:"]
+        is_partial = any(
+            t.startswith(prefix) and len(prefix) < len(t)
+            for t in partial_tags
+        )
+
+        if is_partial:
+            safe_part = buffer[:last_lt]
+            if safe_part:
+                self.stream_token.emit(safe_part)
+            return prefix, False, True
+
+        self.stream_token.emit(buffer)
+        return "", False, False
+
+    def _parse_thinking_chunk(self, buffer):
+        """Parse a chunk when in thinking mode."""
+        if "</think>" in buffer:
+            _, post = buffer.split("</think>", 1)
+            self.stream_state.emit("think_end")
+            return post, False, False
+
+        if "<" in buffer:
+            last_lt = buffer.rfind("<")
+            prefix = buffer[last_lt:]
+            if "</think>".startswith(prefix) and len(prefix) < len("</think>"):
+                return prefix, True, True
+
+        return "", True, False
+
+    def _flush_buffer(self, buffer, is_thinking, strip_leading_whitespace):
+        """Flush any remaining content in the buffer."""
+        if buffer and not is_thinking:
+            if strip_leading_whitespace:
+                buffer = buffer.lstrip()
+            if buffer:
+                self.stream_token.emit(buffer)
+
     def _generate_response(self, message):
         """Generate the assistant response (runs in a background thread)."""
+        self.stream_start.emit()
+
+        is_thinking = False
+        strip_leading_whitespace = True
+        buffer = ""
         full_response = ""
+
         for token in self.assistant.send_message(message, stream=True):
             full_response += token
             print(token, end="", flush=True)
 
+            buffer += token
+
+            # State machine to parse <think>...</think> and stream
+            while buffer:
+                if strip_leading_whitespace and not is_thinking:
+                    buffer = buffer.lstrip()
+                    if not buffer:
+                        break  # wait for more tokens
+                    strip_leading_whitespace = False
+
+                buffer, new_is_thinking, break_loop = self._parse_buffer_chunk(buffer, is_thinking)
+
+                if is_thinking and not new_is_thinking:
+                    strip_leading_whitespace = True
+
+                is_thinking = new_is_thinking
+
+                if break_loop:
+                    break
+
+        self._flush_buffer(buffer, is_thinking, strip_leading_whitespace)
+
         print()  # newline after streaming
+        self.stream_state.emit("done")
 
-        # Remove <think>...</think> tags and any extra whitespace created by it
+        # Cleanup <think> globally for terminal output logs (optional, since UI streamed properly)
         clean_response = re.sub(r'<think>.*?</think>\s*', '', full_response, flags=re.DOTALL).strip()
+        print(f"[GUI] Streaming complete. Clean response length: {len(clean_response)} chars")
 
-        print(f"[GUI] Clean response length: {len(clean_response)} chars")
+    def _push_stream_start(self):
+        self.page.runJavaScript("startAssistantMessage()")
 
-        # Emit signal to push the response to the UI on the main thread
-        self.response_ready.emit(clean_response)
+    def _push_stream_token(self, token):
+        escaped = json.dumps(token)
+        self.page.runJavaScript(f"appendAssistantToken({escaped})")
+
+    def _push_stream_state(self, state):
+        self.page.runJavaScript(f"setAssistantState('{state}')")
 
     def _push_assistant_message(self, text):
         """Push the assistant's response to the HTML chat panel (runs on main thread)."""

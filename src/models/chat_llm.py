@@ -93,7 +93,17 @@ class ChatLlm:
                     tool_content += token
                     if "</tool>" in tool_content:
                         pre, _, _ = tool_content.partition("</tool>")
+
+                        import json_repair
+                        try:
+                            parsed = json_repair.loads(pre)
+                            tool_name = parsed.get("name", "unknown")
+                        except Exception:
+                            tool_name = "unknown"
+
+                        yield f"<action:{tool_name}>"
                         self._handle_parsed_tool(pre, full_response, current_messages)
+                        yield f"</action:{tool_name}>"
                         break
                 else:
                     yield_str, buffer, in_tool = self._process_text_token(token, buffer)

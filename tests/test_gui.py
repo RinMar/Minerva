@@ -74,12 +74,12 @@ class TestGUIBridge(unittest.TestCase):
         self.mock_chat_instance.send_message.side_effect = mock_generate
 
         # Connect to signal to verify it's emitted properly
-        signal_emitted = []
+        tokens_emitted = []
 
-        def on_response(text):
-            signal_emitted.append(text)
+        def on_token(text):
+            tokens_emitted.append(text)
 
-        self.bridge.response_ready.connect(on_response)
+        self.bridge.stream_token.connect(on_token)
 
         # Call the private method directly (simulating what the thread does)
         self.bridge._generate_response("Test prompt")
@@ -88,5 +88,47 @@ class TestGUIBridge(unittest.TestCase):
         QCoreApplication.processEvents()
 
         # Verify the think block was removed and the text was emitted
-        self.assertEqual(len(signal_emitted), 1)
-        self.assertEqual(signal_emitted[0], "Final answer.")
+        self.assertEqual("".join(tokens_emitted), "Final answer.")
+
+    def test_generate_response_complex_flow(self):
+        # Setup mock generation testing actions and stray </think> tags
+        def mock_generate_complex(*args, **kwargs):
+            yield "<think>\nInitial thought\n</think>\n"
+            yield "Wait, I need to check something.\n"
+            yield "<action:retrieve>"
+            yield "</action:retrieve>"
+            yield "<think>\nSecond thought\n</think>\n"
+            yield "I found it. "
+            yield "</think>\n"  # Stray tag that used to cause leaks
+            yield "Final "
+            yield "answer."
+
+        self.mock_chat_instance.send_message.side_effect = mock_generate_complex
+
+        tokens_emitted = []
+        states_emitted = []
+
+        def on_token(text):
+            tokens_emitted.append(text)
+
+        def on_state(state):
+            states_emitted.append(state)
+
+        # Disconnect previous test connections if they persist across run
+        try:
+            self.bridge.stream_token.disconnect()
+            self.bridge.stream_state.disconnect()
+        except RuntimeError:
+            pass
+
+        self.bridge.stream_token.connect(on_token)
+        self.bridge.stream_state.connect(on_state)
+
+        self.bridge._generate_response("Complex Test prompt")
+        QCoreApplication.processEvents()
+
+        expected_text = "Wait, I need to check something.\nI found it. \nFinal answer."
+        self.assertEqual("".join(tokens_emitted), expected_text)
+
+        self.assertIn("action_start_retrieve", states_emitted)
+        self.assertIn("action_end", states_emitted)
