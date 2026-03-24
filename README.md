@@ -83,3 +83,9 @@ To run the entire test suite (including graph building, semantic deletion, and R
 ```bash
 pytest tests/
 ```
+
+## License
+This project is open source (MIT).
+
+It uses PySide6 (Qt for Python), which is licensed under the LGPL.
+Users may replace or modify the Qt/PySide components.
