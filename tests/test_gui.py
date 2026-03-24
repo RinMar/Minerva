@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 import json
 
 from PySide6.QtCore import QCoreApplication
-from PySide6.QtWidgets import QApplication
 
 from src.gui.main import Bridge
 
