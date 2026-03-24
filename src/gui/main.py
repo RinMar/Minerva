@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtCore import QObject, Slot, Signal, QUrl, QTimer
+from src.memory.db import get_session, EntityNode, GraphEdge
 
 
 class Bridge(QObject):
@@ -117,7 +118,6 @@ class MainWindow(QMainWindow):
         self.poll_timer.start(5000)
 
     def load_graph_data(self):
-        from src.memory.db import get_session, EntityNode, GraphEdge
 
         print(f"\n[GUI] Loading graph data for user: '{self.user_name}'")
 

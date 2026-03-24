@@ -9,3 +9,4 @@ llama-cpp-python
 numpy
 torch
 transformers
+PySide6
