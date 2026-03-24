@@ -2,6 +2,10 @@
 
 Minerva is an experimental, privacy-first, Python-based AI assistant. It leverages local Large Language Models (LLMs) to converse, learn, and dynamically adapt to the user over time—all while keeping your data strictly on your own device. It is currently in heavy development and not ready for production use. Contributions welcome!
 
+## Demo
+The graph is updated in real-time as the AI learns about you.
+![Demo](demo.gif)
+
 ## Architecture & Features
 
 Minerva operates on a **Tool-Based Memory Architecture** rather than passively summarizing chat logs. 
@@ -83,3 +87,9 @@ To run the entire test suite (including graph building, semantic deletion, and R
 ```bash
 pytest tests/
 ```
+
+## License
+This project is open source (MIT).
+
+It uses PySide6 (Qt for Python), which is licensed under the LGPL.
+Users may replace or modify the Qt/PySide components.

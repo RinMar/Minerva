@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minerva — Knowledge Graph</title>
+
+    <!-- QWebChannel -->
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f0f13;
+            color: #e0e0e6;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* ── Left Panel: Chat ── */
+        #chat-panel {
+            width: 35%;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            background: #16161d;
+            border-right: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        #chat-header {
+            padding: 18px 22px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: #a78bfa;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            background: linear-gradient(180deg, rgba(167, 139, 250, 0.06) 0%, transparent 100%);
+        }
+
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #chat-messages::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(167, 139, 250, 0.3);
+            border-radius: 2px;
+        }
+
+        .msg {
+            max-width: 88%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13.5px;
+            line-height: 1.5;
+            animation: fadeIn 0.25s ease;
+            word-wrap: break-word;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #6d28d9, #7c3aed);
+            color: #f3f0ff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .msg.assistant {
+            align-self: flex-start;
+            background: #1e1e2a;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: #d0d0da;
+            border-bottom-left-radius: 4px;
+        }
+
+        .msg.system {
+            align-self: center;
+            background: transparent;
+            color: #666;
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        #chat-input-area {
+            display: flex;
+            align-items: flex-end;
+            padding: 14px 16px;
+            gap: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            background: #12121a;
+        }
+
+        #chat-input {
+            flex: 1;
+            background: #1e1e2a;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 13.5px;
+            color: #e0e0e6;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            resize: none;
+            min-height: 40px;
+            max-height: 150px;
+            overflow-y: auto;
+            line-height: 1.4;
+        }
+
+        #chat-input:focus {
+            border-color: rgba(167, 139, 250, 0.5);
+        }
+
+        #chat-input::placeholder {
+            color: #555;
+        }
+
+        #send-btn {
+            width: 38px;
+            height: 38px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #6d28d9, #7c3aed);
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.15s, box-shadow 0.2s;
+        }
+
+        #send-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 0 14px rgba(124, 58, 237, 0.4);
+        }
+
+        #send-btn:active {
+            transform: scale(0.96);
+        }
+
+        /* ── Right Panel: Graph ── */
+        #graph-panel {
+            flex: 1;
+            position: relative;
+            background: #0f0f13;
+        }
+
+        #mynetwork {
+            width: 100%;
+            height: 100vh;
+        }
+
+        #graph-stats {
+            position: absolute;
+            top: 14px;
+            right: 18px;
+            font-size: 11px;
+            color: #555;
+            background: rgba(15, 15, 19, 0.85);
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.04);
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Chat Panel -->
+    <div id="chat-panel">
+        <div id="chat-header">💬 Minerva Chat</div>
+        <div id="chat-messages">
+            <div class="msg system">Connected to Minerva. Your knowledge graph is loading…</div>
+        </div>
+        <div id="chat-input-area">
+            <textarea id="chat-input" placeholder="Ask Minerva something…" rows="1"></textarea>
+            <button id="send-btn" title="Send">▶</button>
+        </div>
+    </div>
+
+    <!-- Graph Panel -->
+    <div id="graph-panel">
+        <div id="mynetwork"></div>
+        <div id="graph-stats">Nodes: 0 &nbsp;|&nbsp; Edges: 0</div>
+    </div>
+
+    <!-- vis-network loaded as a local file (same directory) -->
+    <script src="vis-network.min.js"></script>
+
+    <script>
+        // ── Graph Setup ──
+        var nodes = new vis.DataSet([]);
+        var edges = new vis.DataSet([]);
+        var network = null;
+
+        function initNetwork() {
+            const container = document.getElementById('mynetwork');
+
+            const data = { nodes: nodes, edges: edges };
+
+            const options = {
+                interaction: {
+                    dragNodes: true,
+                    hover: true,
+                    zoomView: true,
+                    dragView: true
+                },
+                physics: {
+                    enabled: true,
+                    stabilization: { iterations: 120 },
+                    barnesHut: {
+                        gravitationalConstant: -3000,
+                        springLength: 160,
+                        springConstant: 0.03,
+                        damping: 0.12
+                    }
+                },
+                nodes: {
+                    shape: 'dot',
+                    size: 18,
+                    font: { size: 13, color: '#ccc', face: 'Inter, sans-serif' },
+                    color: {
+                        background: '#7c3aed',
+                        border: '#6d28d9',
+                        highlight: { background: '#a78bfa', border: '#7c3aed' },
+                        hover: { background: '#8b5cf6', border: '#7c3aed' }
+                    },
+                    borderWidth: 2
+                },
+                edges: {
+                    color: { color: '#444', highlight: '#888', hover: '#666' },
+                    font: { size: 10, color: '#777', face: 'Inter, sans-serif', strokeWidth: 0 },
+                    arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+                    smooth: { type: 'curvedCW', roundness: 0.15 }
+                }
+            };
+
+            network = new vis.Network(container, data, options);
+        }
+
+        // ── Called from Python ──
+        function updateGraph(dataUpdate) {
+            if (dataUpdate.nodes) {
+                dataUpdate.nodes.forEach(function (n) {
+                    if (nodes.get(n.id)) {
+                        nodes.update(n);
+                    } else {
+                        nodes.add(n);
+                    }
+                });
+            }
+
+            if (dataUpdate.edges) {
+                dataUpdate.edges.forEach(function (e) {
+                    var id = e.id || (e.from + "_" + e.to + "_" + e.label);
+                    if (!edges.get(id)) {
+                        edges.add({
+                            id: id,
+                            from: e.from,
+                            to: e.to,
+                            label: e.label,
+                            arrows: "to"
+                        });
+                    }
+                });
+            }
+
+            // Update stats
+            document.getElementById('graph-stats').textContent =
+                'Nodes: ' + nodes.length + '  |  Edges: ' + edges.length;
+        }
+
+        // ── Called from Python to show a chat message ──
+        function appendMessage(role, text) {
+            var container = document.getElementById('chat-messages');
+            var div = document.createElement('div');
+            div.className = 'msg ' + role;
+            div.textContent = text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // ── Chat Input ──
+        function sendMessage() {
+            var input = document.getElementById('chat-input');
+            var text = input.value.trim();
+            if (!text) return;
+
+            appendMessage('user', text);
+            input.value = '';
+            input.style.height = 'auto'; // reset height
+
+            if (window.pyBridge) {
+                pyBridge.send_message(text);
+            }
+        }
+
+        var chatInput = document.getElementById('chat-input');
+        
+        // Auto-resize textarea
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+        chatInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevents adding a new line
+                sendMessage();
+            }
+        });
+
+        // ── QWebChannel bridge ──
+        if (typeof qt !== 'undefined') {
+            new QWebChannel(qt.webChannelTransport, function (channel) {
+                window.pyBridge = channel.objects.pyBridge;
+            });
+        }
+
+        initNetwork();
+    </script>
+</body>
+
+</html>
