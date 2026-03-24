@@ -8,9 +8,9 @@ from PySide6.QtWidgets import QApplication
 from src.gui.main import Bridge
 
 # Ensure an application instance exists for QObject signals to work
-app = QApplication.instance()
+app = QCoreApplication.instance()
 if app is None:
-    app = QApplication([])
+    app = QCoreApplication([])
 
 
 class MockPage:
