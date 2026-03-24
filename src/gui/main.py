@@ -50,10 +50,10 @@ class Bridge(QObject):
             print(token, end="", flush=True)
 
         print()  # newline after streaming
-        
+
         # Remove <think>...</think> tags and any extra whitespace created by it
         clean_response = re.sub(r'<think>.*?</think>\s*', '', full_response, flags=re.DOTALL).strip()
-        
+
         print(f"[GUI] Clean response length: {len(clean_response)} chars")
 
         # Emit signal to push the response to the UI on the main thread

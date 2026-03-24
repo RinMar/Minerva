@@ -1,21 +1,17 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from pyvis.network import Network
-import os
-import sys
-
-# Ensure src module can be imported
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.memory.db import get_session, EntityNode, GraphEdge
+
 
 def get_all_data():
     with get_session() as session:
         nodes = session.query(EntityNode).all()
         edges = session.query(GraphEdge).all()
-        
+
         result_data = []
         node_map = {node.id: node for node in nodes}
-        
+
         for edge in edges:
             source = node_map.get(edge.source_id)
             target = node_map.get(edge.target_id)
@@ -27,10 +23,11 @@ def get_all_data():
                 })
         return result_data
 
+
 def visualize_graph(data=None):
     if data is None:
         data = get_all_data()
-        
+
     G = nx.DiGraph()  # Directed graph
 
     for record in data:
@@ -91,7 +88,12 @@ def visualize_interactive(data=None):
 
             for node in nodes:
                 # Add all available information to tooltip
-                tooltip = f"<b>Name:</b> {node.name}<br><b>Topic:</b> {node.topic}<br><b>Tags:</b> {node.tags_json}<br><b>Text:</b> {node.text}"
+                tooltip = (
+                    f"<b>Name:</b> {node.name}<br>"
+                    f"<b>Topic:</b> {node.topic}<br>"
+                    f"<b>Tags:</b> {node.tags_json}<br>"
+                    f"<b>Text:</b> {node.text}"
+                )
                 net.add_node(node.id, label=node.name, title=tooltip)
 
             for edge in edges:
