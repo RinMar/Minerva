@@ -5,6 +5,9 @@ so the main chat interface remains responsive.
 """
 
 import threading
+from src.memory import graph_manager
+from src.memory.triplet_extraction import extract_triplets
+from src.memory.context_store import delete_fact
 
 
 class MemoryOrchestrator:
@@ -68,8 +71,6 @@ class MemoryOrchestrator:
                 print(f"[Orchestrator] Store pipeline error: {e}")
 
     def _process_store(self, fact: dict, topic: str):
-        from src.memory import graph_manager
-        from src.memory.triplet_extraction import extract_triplets
 
         text = fact.get("fact", "")
         if "text" in fact and not text:
@@ -97,7 +98,6 @@ class MemoryOrchestrator:
         print(f"[Orchestrator] Graph updated via Triplets. Added {added} edges.")
 
     def _process_update(self, fact: dict, topic: str):
-        from src.memory.context_store import delete_fact
         old_fact = fact.get("old_fact", "")
         new_fact = fact.get("new_fact", "")
         tags = fact.get("tags", ["tool_stored"])
@@ -106,7 +106,6 @@ class MemoryOrchestrator:
             self._process_store({"fact": new_fact, "tags": tags}, topic)
 
     def _process_delete(self, fact: dict):
-        from src.memory.context_store import delete_fact
         text = fact.get("text", "")
         if text:
             delete_fact(text, self.emb_model, self.user_name)

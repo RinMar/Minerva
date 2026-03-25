@@ -44,7 +44,6 @@ def delete_fact(fact_text: str, emb_model, user_name: str, memory_base_dir="loca
     Delete a fact from the database entirely.
     Removes the most similar edge and removes the exact or highly similar text from EntityNodes.
     """
-    import json
     with get_session() as session:
         query_emb = emb_model.encode(fact_text).tolist()
         deleted_something = False
