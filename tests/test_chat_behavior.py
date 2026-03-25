@@ -13,6 +13,8 @@ import src.memory.db as db_module
 from src.memory.db import EntityNode, GraphEdge
 from src.memory.graph_manager import add_triplets
 from src.models.embeddings import embedding_model
+from src.chat import Chat
+from src.models.base_llm import CustomLLM
 from sqlalchemy.pool import StaticPool
 
 # 1. Patch database engine for tests
@@ -118,7 +120,6 @@ class TestChatBehavior(unittest.TestCase):
 
     def test_chat_api_send_message(self):
         """Test the public Chat API promise from the README."""
-        from src.chat import Chat
 
         # Mock generator mimicking LLM responses
         def mock_generate(messages, **kwargs):
@@ -141,7 +142,6 @@ class TestChatBehavior(unittest.TestCase):
         We initialize RAGChat normally, trigger a tiny stream, and break early.
         """
         # Initialize with real models (loads local LLMs)
-        from src.models.base_llm import CustomLLM
         tiny_llm = CustomLLM(
             repo_id="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
             filename="*q8_0.gguf",

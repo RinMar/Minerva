@@ -3,6 +3,7 @@ Conversational LLM interface.
 Used to handle multi-turn chat history, system prompts, and XML-based tool call interception natively.
 """
 from src.config import PROMPTS
+import json_repair
 
 
 class ChatLlm:
@@ -38,7 +39,6 @@ class ChatLlm:
 
     def _handle_parsed_tool(self, tool_json_str: str, full_response: str, current_messages: list):
         """Executes a parsed tool and appends the result to history and messages."""
-        import json_repair
         try:
             parsed = json_repair.loads(tool_json_str)
             tool_name = parsed.get("name")
@@ -94,7 +94,6 @@ class ChatLlm:
                     if "</tool>" in tool_content:
                         pre, _, _ = tool_content.partition("</tool>")
 
-                        import json_repair
                         try:
                             parsed = json_repair.loads(pre)
                             tool_name = parsed.get("name", "unknown")

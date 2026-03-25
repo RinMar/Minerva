@@ -1,6 +1,5 @@
 sentence-transformers
 scikit-learn
-toml
 json_repair
 sqlalchemy
 pytest

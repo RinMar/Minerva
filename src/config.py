@@ -4,14 +4,7 @@ Used to load and parse configuration variables such as model hyperparameters
 from config.toml, and to provide the PROMPTS dictionary for system instructions.
 """
 import os
-
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        pass  # Will fail gracefully if unavailable and file exists
+import tomllib
 
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.toml")
@@ -54,9 +47,8 @@ def load_config():
             raw_config["performance_mode"] = mode
             return raw_config
 
-    except NameError:
-        # If tomllib wasn't imported successfully (e.g. Python < 3.11 without tomli)
-        print("Warning: tomllib not found. Using default configuration.")
+    except Exception as e:
+        print(f"Warning: Failed to load configuration from {CONFIG_PATH}: {e}")
         return default_config
 
 
