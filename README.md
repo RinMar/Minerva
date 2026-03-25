@@ -32,28 +32,31 @@ pip install -r requirements.txt
 To enable GPU acceleration via PyTorch with CUDA:
 
 ```bash
-pip3 install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu126
+pip3 install --upgrade --ignore-installed torch torchvision --index-url https://download.pytorch.org/whl/cu126
 ```
 ### For llama-cpp-python:
+To build llama-cpp-python from source on Windows, you need to have Visual Studio 2022 with C++ build tools installed.
+
 With CUDA:
 Make sure you have the CUDA toolkit installed and configured for your system. Multiple versions may lead to silent failures. Use `nvcc --version` to check your current version.
 
 For Windows:
 ```powershell
-$env:CMAKE_ARGS="-DGGML_CUDA=on"; pip install --upgrade llama-cpp-python
+$env:CMAKE_ARGS="-DGGML_CUDA=on"; pip install --ignore-installed llama-cpp-python
 ```
 For Linux:
 ```bash
-CMAKE_ARGS="-DGGML_CUDA=on" pip install --upgrade llama-cpp-python
+CMAKE_ARGS="-DGGML_CUDA=on" pip install --ignore-installed llama-cpp-python
 ```
 With Vulkan:
+Make sure you have the Vulkan SDK installed and configured for your system. Multiple versions may lead to silent failures. Use `vulkaninfo` to check your current version. On Windows, you will also need the Windows SDK.
 For Windows:
 ```powershell
-$env:CMAKE_ARGS="-DGGML_VULKAN=on"; pip install --upgrade llama-cpp-python
+$env:CMAKE_ARGS="-DGGML_VULKAN=on"; pip install --ignore-installed llama-cpp-python
 ```
 For Linux:
 ```bash
-CMAKE_ARGS="-DGGML_VULKAN=on" pip install --upgrade llama-cpp-python
+CMAKE_ARGS="-DGGML_VULKAN=on" pip install --ignore-installed llama-cpp-python
 ```
 
 *Note: Installation of `llama-cpp-python` with CUDA bindings can take up to 30 minutes to compile, depending on your system configuration. Please be patient and trust the process!*
