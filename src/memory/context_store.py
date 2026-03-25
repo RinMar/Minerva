@@ -124,6 +124,52 @@ def _rerank(cross_encoder, query_text: str, candidates: list,
     return [item for item, score in scored][:top_n]
 
 
+def _score_embeddings(all_embs, query_emb, k: int) -> list:
+    """Compute cosine similarity and return top-k rows."""
+    scored = []
+    for row in all_embs:
+        emb = json.loads(row.embedding_json)
+        score = cosine_similarity(query_emb, emb)
+        scored.append((row, score))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [row for row, _ in scored[:k]]
+
+
+def _extract_seed_entity_ids(session, top_k_rows) -> list:
+    """Extract entity IDs from a mix of entity and edge rows."""
+    seed_entity_ids = []
+    for row in top_k_rows:
+        if row.collection == "entity":
+            seed_entity_ids.append(row.source_id)
+        elif row.collection == "edge":
+            edge = session.query(GraphEdge).filter_by(id=int(row.source_id)).first()
+            if edge:
+                seed_entity_ids.extend([edge.source_id, edge.target_id])
+    return list(set(seed_entity_ids))
+
+
+def _format_context_results(candidates, edges, name_map) -> str:
+    """Format candidates and edges into a readable context string."""
+    if not candidates and not edges:
+        return ""
+
+    lines = []
+    if candidates:
+        lines.append("Relevant entities:")
+        for eid, text in candidates:
+            name = name_map.get(eid, eid)
+            flat = text.replace("\n", ". ").strip()
+            lines.append(f"[{name}]: {flat}")
+
+    if edges:
+        lines.append("\nRelations:")
+        for e in edges:
+            lines.append(f"- {e.source_name} -- {e.relation} --> {e.target_name}")
+
+    return "\n".join(lines)
+
+
 def retrieve_context(query_emb, user_name: str, cross_encoder=None,
                      query_text: str = "", k: int = 10, top_n: int = 5,
                      memory_base_dir="local_store") -> str:
@@ -137,31 +183,12 @@ def retrieve_context(query_emb, user_name: str, cross_encoder=None,
             return ""
 
         # Step 1: Embedding search
-        scored = []
-        for row in all_embs:
-            emb = json.loads(row.embedding_json)
-            score = cosine_similarity(query_emb, emb)
-            scored.append((row, score))
-
-        scored.sort(key=lambda x: x[1], reverse=True)
-        top_k_rows = [row for row, _ in scored[:k]]
-
+        top_k_rows = _score_embeddings(all_embs, query_emb, k)
         if not top_k_rows:
             return ""
 
         # Step 2: Extract seed Entity IDs from the top-k result
-        seed_entity_ids = []
-        for row in top_k_rows:
-            if row.collection == "entity":
-                seed_entity_ids.append(row.source_id)
-            elif row.collection == "edge":
-                # Find the target edge and get its source/target entities
-                edge = session.query(GraphEdge).filter_by(id=int(row.source_id)).first()
-                if edge:
-                    seed_entity_ids.extend([edge.source_id, edge.target_id])
-
-        seed_entity_ids = list(set(seed_entity_ids))
-
+        seed_entity_ids = _extract_seed_entity_ids(session, top_k_rows)
         if not seed_entity_ids:
             return ""
 
@@ -172,8 +199,10 @@ def retrieve_context(query_emb, user_name: str, cross_encoder=None,
 
         final_ids = list(set(seed_entity_ids).union(expanded_ids))
 
-        # Step 4: Load texts for the expanded candidates
-        entity_rows = session.query(EntityNode.id, EntityNode.text).filter(
+        # Step 4a: Load and rerank top entity nodes
+        entity_rows = session.query(
+            EntityNode.id, EntityNode.name, EntityNode.text
+        ).filter(
             EntityNode.user_name == user_name,
             EntityNode.id.in_(final_ids)
         ).all()
@@ -188,11 +217,15 @@ def retrieve_context(query_emb, user_name: str, cross_encoder=None,
         else:
             candidates = candidates[:top_n]
 
-        # Step 5: Format
-        if not candidates:
-            return ""
+        # Build a name lookup for formatting
+        name_map = {r.id: r.name for r in entity_rows}
 
-        lines = ["Relevant known facts:\n"]
-        for eid, text in candidates:
-            lines.append(f"- {text}")
-        return "\n".join(lines)
+        # Step 4b: Load graph edges between all expanded entities
+        edges = session.query(GraphEdge).filter(
+            GraphEdge.user_name == user_name,
+            GraphEdge.source_id.in_(final_ids),
+            GraphEdge.target_id.in_(final_ids)
+        ).all()
+
+        # Step 5: Format as two sections
+        return _format_context_results(candidates, edges, name_map)
