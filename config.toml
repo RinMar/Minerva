@@ -1,8 +1,16 @@
+[high_performance]
+n_ctx = 40960
+n_gpu_layers = -1
+device = "cuda"
+
+[low_performance]
+n_ctx = 8192
+n_gpu_layers = 24
+device = "cpu"
+
 [llm]
 repo_id = "Qwen/Qwen3-8B-GGUF"
 filename = "*Q4_K_M.gguf"
-n_ctx = 32768
-n_gpu_layers = -1
 n_batch = 512
 use_mmap = true
 use_mlock = true

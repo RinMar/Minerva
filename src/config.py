@@ -27,7 +27,8 @@ def load_config():
             "n_batch": 512,
             "use_mmap": True,
             "use_mlock": True,
-            "verbose": False
+            "verbose": False,
+            "device": "cpu"
         }
     }
 
@@ -36,7 +37,23 @@ def load_config():
 
     try:
         with open(CONFIG_PATH, "rb") as f:
-            return tomllib.load(f)
+            raw_config = tomllib.load(f)
+            
+            # Identify mode from environment variable
+            mode = os.environ.get("MINERVA_PERFORMANCE", "low").lower()
+            
+            # Base LLM settings
+            llm_config = raw_config.get("llm", {})
+            
+            # Merge preset
+            preset_key = f"{mode}_performance"
+            if preset_key in raw_config:
+                llm_config.update(raw_config[preset_key])
+            
+            raw_config["llm"] = llm_config
+            raw_config["performance_mode"] = mode
+            return raw_config
+            
     except NameError:
         # If tomllib wasn't imported successfully (e.g. Python < 3.11 without tomli)
         print("Warning: tomllib not found. Using default configuration.")
