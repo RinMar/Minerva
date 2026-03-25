@@ -146,7 +146,7 @@ class TestMemoryPipeline(unittest.TestCase):
             expanded_reverse = expand_nodes([node_B.id], self.user_name, depth=1)
             self.assertIn(node_A.id, expanded_reverse)
 
-    @patch("src.memory.triplet_extraction.extract_triplets")
+    @patch("src.memory.orchestrator.extract_triplets")
     def test_orchestrator_fact_graph(self, mock_extract):
         """
         Test the orchestrator pipeline directly inserting extracted triplets into the graph.
