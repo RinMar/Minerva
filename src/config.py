@@ -6,8 +6,35 @@ from config.toml, and to provide the PROMPTS dictionary for system instructions.
 import os
 import tomllib
 
+from src.paths import CONFIG_PATH
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.toml")
+DEFAULT_CONFIG_TOML = """\
+[high_performance]
+n_ctx = 40960
+n_gpu_layers = -1
+device = "cuda"
+
+[low_performance]
+n_ctx = 8192
+n_gpu_layers = 24
+device = "cpu"
+
+[llm]
+repo_id = "Qwen/Qwen3-8B-GGUF"
+filename = "Qwen3-8B-Q4_K_M.gguf"
+n_batch = 512
+use_mmap = true
+use_mlock = true
+verbose = false
+"""
+
+
+def _ensure_config_exists():
+    """Write the default config.toml into the app data dir if it doesn't exist."""
+    if not os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            f.write(DEFAULT_CONFIG_TOML)
+        print(f"Created default config at: {CONFIG_PATH}")
 
 
 def load_config():
@@ -25,8 +52,7 @@ def load_config():
         }
     }
 
-    if not os.path.exists(CONFIG_PATH):
-        return default_config
+    _ensure_config_exists()
 
     try:
         with open(CONFIG_PATH, "rb") as f:

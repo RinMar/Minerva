@@ -5,7 +5,7 @@ intercepting tool calls mid-stream to fetch and store knowledge natively.
 """
 from src.models.base_llm import CustomLLM
 from src.models.chat_llm import ChatLlm
-from src.models.embeddings import embedding_model, reranker_model
+from src.models.embeddings import get_embedding_model, get_reranker_model
 from src.memory.context_store import retrieve_context
 from src.memory.orchestrator import MemoryOrchestrator
 
@@ -25,12 +25,27 @@ class RAGChat(ChatLlm):
         super().__init__(llm=llm)
         self.user_name = user_name
 
-        self.emb_model = embedding_model
-        self.cross_encoder = reranker_model
+        self._emb_model = None
+        self._cross_encoder = None
 
         self.orchestrator = MemoryOrchestrator(
-            llm=self.llm, emb_model=self.emb_model, user_name=user_name, cross_encoder=self.cross_encoder
+            llm=self.llm,
+            emb_model=self.emb_model,
+            user_name=user_name,
+            cross_encoder=self.cross_encoder
         )
+
+    @property
+    def emb_model(self):
+        if self._emb_model is None:
+            self._emb_model = get_embedding_model()
+        return self._emb_model
+
+    @property
+    def cross_encoder(self):
+        if self._cross_encoder is None:
+            self._cross_encoder = get_reranker_model()
+        return self._cross_encoder
 
     def _execute_tool(self, tool_name: str, tool_args: dict) -> str:
         """

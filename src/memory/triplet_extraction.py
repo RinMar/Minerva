@@ -5,13 +5,14 @@ for the knowledge graph.
 """
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from src.paths import MODELS_DIR
 
 model_name = "Babelscape/rebel-large"
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
+tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=MODELS_DIR)
+model = AutoModelForSeq2SeqLM.from_pretrained(model_name, cache_dir=MODELS_DIR).to(device)
 model.eval()
 
 

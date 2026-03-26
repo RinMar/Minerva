@@ -1,3 +1,4 @@
+platformdirs
 sentence-transformers
 scikit-learn
 json_repair
@@ -9,3 +10,6 @@ numpy
 torch
 transformers
 PySide6
+hf_transfer
+requests
+tqdm

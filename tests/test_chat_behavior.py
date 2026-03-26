@@ -12,7 +12,7 @@ from src.memory.db import Base
 import src.memory.db as db_module
 from src.memory.db import EntityNode, GraphEdge
 from src.memory.graph_manager import add_triplets
-from src.models.embeddings import embedding_model
+from src.models.embeddings import get_embedding_model
 from src.chat import Chat
 from src.models.base_llm import CustomLLM
 from sqlalchemy.pool import StaticPool
@@ -54,7 +54,7 @@ class TestChatBehavior(unittest.TestCase):
             ["identity"],
             "I am a test user.",
             "test_user",
-            embedding_model
+            get_embedding_model()
         )
 
         # Yield a tool block first, then yield the final string
@@ -73,7 +73,7 @@ class TestChatBehavior(unittest.TestCase):
         self.mock_llm.generate.side_effect = mock_generate
 
         chat = RAGChat(user_name="test_user", llm=self.mock_llm)
-        chat.cross_encoder = self.mock_cross_encoder
+        chat._cross_encoder = self.mock_cross_encoder
 
         response_tokens = list(chat.generate("who am I?", stream=True))
         final_answer = "".join(response_tokens)
@@ -106,7 +106,7 @@ class TestChatBehavior(unittest.TestCase):
         self.mock_llm.generate.side_effect = mock_generate
 
         chat = RAGChat(user_name="test_user", llm=self.mock_llm)
-        chat.cross_encoder = self.mock_cross_encoder
+        chat._cross_encoder = self.mock_cross_encoder
 
         # Spy on the orchestrator
         chat.orchestrator.trigger_store = MagicMock()
@@ -129,7 +129,7 @@ class TestChatBehavior(unittest.TestCase):
         self.mock_llm.generate.side_effect = mock_generate
 
         assistant = Chat(user_name="api_user", llm=self.mock_llm)
-        assistant.cross_encoder = self.mock_cross_encoder
+        assistant._cross_encoder = self.mock_cross_encoder
 
         response_tokens = list(assistant.send_message("Hello!", stream=True))
         final_answer = "".join(response_tokens)
@@ -144,7 +144,7 @@ class TestChatBehavior(unittest.TestCase):
         # Initialize with real models (loads local LLMs)
         tiny_llm = CustomLLM(
             repo_id="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
-            filename="*q8_0.gguf",
+            filename="qwen2.5-0.5b-instruct-q8_0.gguf",
             n_ctx=2048,       # Increased to fit the initial prompt of ~1200 tokens
             use_mlock=False   # Avoid mlock limits on Linux CI runners
         )
