@@ -1,6 +1,3 @@
-from src.gui.main import MainWindow
-from src.memory.db import init_db
-from PySide6.QtWidgets import QApplication
 import os
 import sys
 
@@ -11,6 +8,9 @@ PERFORMANCE_MODE = "high"
 os.environ["MINERVA_PERFORMANCE"] = PERFORMANCE_MODE
 
 # Import GUI and models AFTER setting performance mode environment variable
+from src.gui.main import MainWindow  # noqa: E402
+from src.memory.db import init_db  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 app = QApplication(sys.argv)
 init_db()
