@@ -115,7 +115,7 @@ class TestChatBehavior(unittest.TestCase):
 
         # Verify the orchestrator was triggered securely
         chat.orchestrator.trigger_store.assert_called_once_with(
-            "hobbies", "user likes tennis", triplets=[{"head": "user", "type": "likes", "tail": "tennis"}]
+            "hobbies", fact="user likes tennis", triplets=[{"head": "user", "type": "likes", "tail": "tennis"}]
         )
 
     def test_chat_api_send_message(self):

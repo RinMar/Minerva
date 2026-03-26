@@ -18,7 +18,7 @@ class MemoryOrchestrator:
         self.cross_encoder = cross_encoder
         self._pending_facts = []
 
-    def trigger_store(self, topic: str, fact: str = "", old_fact: str = "",
+    def trigger_store(self, topic: str, *, fact: str = "", old_fact: str = "",
                       new_fact: str = "", action: str = "store", triplets: list = None):
         """Queue a memory operation to be processed."""
         item = {"action": action, "topic": topic}
@@ -56,7 +56,15 @@ class MemoryOrchestrator:
 
     def _run_store_pipeline(self, facts: list):
         """Process store/update/delete operations and build FactEdge graph."""
+        if not isinstance(facts, list):
+            print(f"[Orchestrator] CRITICAL: facts is not a list! Type: {type(facts)}")
+            return
+
         for fact in facts:
+            if not isinstance(fact, dict):
+                print(f"[Orchestrator] Store pipeline element is not a dict: type={type(fact)}, value={fact}")
+                continue
+
             action = fact.get("action", "store")
             topic = fact.get("topic", "general")
 
@@ -68,7 +76,29 @@ class MemoryOrchestrator:
                 elif action == "delete":
                     self._process_delete(fact)
             except Exception as e:
-                print(f"[Orchestrator] Store pipeline error: {e}")
+                import traceback
+                print(f"[Orchestrator] Store pipeline error in action '{action}': {e}")
+                traceback.print_exc()
+
+    @staticmethod
+    def _normalize_triplets(triplets: list) -> list:
+        """Ensure triplets are dicts with head/type/tail keys."""
+        if not triplets:
+            return []
+        normalized = []
+        for t in triplets:
+            if isinstance(t, dict):
+                normalized.append(t)
+            elif isinstance(t, str) and " - " in t:
+                # Handle "Subject - Relation - Object" format
+                parts = t.split(" - ", 2)
+                if len(parts) == 3:
+                    normalized.append({
+                        "head": parts[0].strip(),
+                        "type": parts[1].strip(),
+                        "tail": parts[2].strip()
+                    })
+        return normalized
 
     def _process_store(self, fact: dict, topic: str):
 
@@ -84,6 +114,8 @@ class MemoryOrchestrator:
         if not triplets:
             print(f"[Orchestrator] Extracting triplets for fact: {text}")
             triplets = extract_triplets(text)
+        else:
+            triplets = self._normalize_triplets(triplets)
 
         print(f"[Orchestrator] Extracted {len(triplets)} triplets")
 

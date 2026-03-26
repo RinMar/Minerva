@@ -180,6 +180,34 @@ class TestMemoryPipeline(unittest.TestCase):
             self.assertIn(ms_node.id, targets)
             self.assertEqual(edges[0].relation, "works at")
 
+    def test_orchestrator_handles_string_triplets(self):
+        """Reproduces the 'str has no attribute get' bug — string triplets must be normalized."""
+        orchestrator = MemoryOrchestrator(
+            llm=MagicMock(),
+            emb_model=embedding_model,
+            user_name=self.user_name
+        )
+
+        # Run a storage pipeline with string-formatted triplets
+        orchestrator._run_store_pipeline([{
+            "action": "store",
+            "topic": "intro",
+            "tags": ["test"],
+            "fact": "Tom is a computer scientist creating me",
+            "triplets": ["Tom - is a - Computer Scientist", "Tom - creating - Me"]
+        }])
+
+        # Verify entities and edges exist
+        with get_session() as session:
+            count = session.query(EntityNode).filter_by(user_name=self.user_name).count()
+            self.assertGreater(count, 0)
+
+            # Check for specific edge
+            edge = session.query(GraphEdge).filter_by(relation="creating").first()
+            self.assertIsNotNone(edge)
+            self.assertEqual(edge.source_name, "Tom")
+            self.assertEqual(edge.target_name, "Me")
+
 
 if __name__ == "__main__":
     unittest.main()
