@@ -39,7 +39,7 @@ def _find_closest_entity(session, text: str, emb_model, user_name: str, threshol
     return None
 
 
-def delete_fact(fact_text: str, emb_model, user_name: str, memory_base_dir="local_store"):
+def delete_fact(fact_text: str, emb_model, user_name: str):
     """
     Delete a fact from the database entirely.
     Removes the most similar edge and removes the exact or highly similar text from EntityNodes.
@@ -171,7 +171,7 @@ def _format_context_results(candidates, edges, name_map) -> str:
 
 def retrieve_context(query_emb, user_name: str, cross_encoder=None,
                      query_text: str = "", k: int = 10, top_n: int = 5,
-                     memory_base_dir="local_store") -> str:
+                     ) -> str:
     with get_session() as session:
         # Load all embeddings (entities and edges) for the user
         all_embs = session.query(EmbeddingIndex).filter_by(

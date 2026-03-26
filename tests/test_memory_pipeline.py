@@ -12,7 +12,7 @@ from src.memory.graph_manager import add_triplets, expand_nodes
 from src.memory.db import get_session, Base
 from src.memory.db import EntityNode, GraphEdge
 from src.memory.orchestrator import MemoryOrchestrator
-from src.models.embeddings import embedding_model
+from src.models.embeddings import get_embedding_model
 import src.memory.db as db_module
 
 from sqlalchemy.pool import StaticPool
@@ -46,7 +46,7 @@ class TestMemoryPipeline(unittest.TestCase):
     def test_add_triplets(self):
         """Test graph_manager.add_triplets successfully creates EntityNodes and GraphEdges."""
         triplets = [{"head": "User", "type": "loves", "tail": "pasta"}]
-        add_triplets(triplets, "hobbies", ["food"], "The user loves pasta.", self.user_name, embedding_model)
+        add_triplets(triplets, "hobbies", ["food"], "The user loves pasta.", self.user_name, get_embedding_model())
         with get_session() as session:
             entities = session.query(EntityNode).filter(
                 EntityNode.user_name == self.user_name
@@ -63,10 +63,10 @@ class TestMemoryPipeline(unittest.TestCase):
     def test_update_entity_text(self):
         """Test that adding a new triplet for the same entity appends to its summary."""
         triplets1 = [{"head": "User", "type": "loves", "tail": "pasta"}]
-        add_triplets(triplets1, "hobbies", ["food"], "User loves pasta.", self.user_name, embedding_model)
+        add_triplets(triplets1, "hobbies", ["food"], "User loves pasta.", self.user_name, get_embedding_model())
 
         triplets2 = [{"head": "User", "type": "plays", "tail": "tennis"}]
-        add_triplets(triplets2, "hobbies", ["sports"], "User plays tennis.", self.user_name, embedding_model)
+        add_triplets(triplets2, "hobbies", ["sports"], "User plays tennis.", self.user_name, get_embedding_model())
 
         with get_session() as session:
             entities = session.query(EntityNode).filter(EntityNode.name == "User").all()
@@ -77,7 +77,7 @@ class TestMemoryPipeline(unittest.TestCase):
     def test_delete_fact(self):
         """Test fact deletion functionality."""
         triplets = [{"head": "OldIdea", "type": "is", "tail": "bad"}]
-        add_triplets(triplets, "misc", ["test"], "To be deleted.", self.user_name, embedding_model)
+        add_triplets(triplets, "misc", ["test"], "To be deleted.", self.user_name, get_embedding_model())
 
         # Verify it went in
         with get_session() as session:
@@ -87,7 +87,7 @@ class TestMemoryPipeline(unittest.TestCase):
             self.assertEqual(edges, 1)
 
         # Delete it via store
-        delete_fact("To be deleted.", embedding_model, self.user_name)
+        delete_fact("To be deleted.", get_embedding_model(), self.user_name)
 
         # Verify entity text is gone, and since it was the only text, the entity itself should drop
         with get_session() as session:
@@ -99,11 +99,11 @@ class TestMemoryPipeline(unittest.TestCase):
     def test_update_fact_removes_old_edges(self):
         """Test that updating a fact removes old edges correctly without deleting the entity."""
         triplets_old = [{"head": "User", "type": "lives in", "tail": "Paris"}]
-        add_triplets(triplets_old, "location", ["city"], "User lives in Paris.", self.user_name, embedding_model)
+        add_triplets(triplets_old, "location", ["city"], "User lives in Paris.", self.user_name, get_embedding_model())
 
         # Add another unrelated fact to same entity to keep it alive
         triplets_keep = [{"head": "User", "type": "likes", "tail": "coffee"}]
-        add_triplets(triplets_keep, "preference", ["food"], "User likes coffee.", self.user_name, embedding_model)
+        add_triplets(triplets_keep, "preference", ["food"], "User likes coffee.", self.user_name, get_embedding_model())
 
         with get_session() as session:
             self.assertEqual(session.query(GraphEdge).count(), 2)
@@ -111,7 +111,7 @@ class TestMemoryPipeline(unittest.TestCase):
             self.assertIn("lives in Paris", user_node.text)
 
         # "Update" by deleting old fact text
-        delete_fact("User lives in Paris", embedding_model, self.user_name)
+        delete_fact("User lives in Paris", get_embedding_model(), self.user_name)
 
         with get_session() as session:
             # The edge for Paris should be gone, coffee remains (1 edge left)
@@ -130,7 +130,7 @@ class TestMemoryPipeline(unittest.TestCase):
             {"head": "NodeA", "type": "rel1", "tail": "NodeB"},
             {"head": "NodeA", "type": "rel2", "tail": "NodeC"}
         ]
-        add_triplets(triplets, "test", ["test"], "A to B and C", self.user_name, embedding_model)
+        add_triplets(triplets, "test", ["test"], "A to B and C", self.user_name, get_embedding_model())
 
         with get_session() as session:
             node_A = session.query(EntityNode).filter_by(name="NodeA").first()
@@ -155,7 +155,7 @@ class TestMemoryPipeline(unittest.TestCase):
 
         orchestrator = MemoryOrchestrator(
             llm=MagicMock(),
-            emb_model=embedding_model,
+            emb_model=get_embedding_model(),
             user_name=self.user_name
         )
 
@@ -184,7 +184,7 @@ class TestMemoryPipeline(unittest.TestCase):
         """Reproduces the 'str has no attribute get' bug — string triplets must be normalized."""
         orchestrator = MemoryOrchestrator(
             llm=MagicMock(),
-            emb_model=embedding_model,
+            emb_model=get_embedding_model(),
             user_name=self.user_name
         )
 

@@ -5,11 +5,11 @@ as well as defining the ORM schema models (EntityNode, GraphEdge, EmbeddingIndex
 """
 from sqlalchemy import create_engine, Column, String, Text, ForeignKey, Integer
 from sqlalchemy.orm import sessionmaker, declarative_base
-import os
 from contextlib import contextmanager
 
-os.makedirs("local_store", exist_ok=True)
-DATABASE_URL = "sqlite:///local_store/memory.db"
+from src.paths import DB_PATH
+
+DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 _engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
