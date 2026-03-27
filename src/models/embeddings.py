@@ -12,7 +12,9 @@ _reranker_model = None
 def get_embedding_model():
     global _embedding_model
     if _embedding_model is None:
-        model_id = config["models"].get("embedding_model_id", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+        model_id = config["models"].get(
+            "embedding_model_id", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        )
         print(f"Loading embedding model {model_id} on device: {device}...")
         _embedding_model = SentenceTransformer(
             model_id,
