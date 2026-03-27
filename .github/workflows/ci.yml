@@ -2,11 +2,21 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
-    branches: [main]
+    branches: [main, staging]
 
 jobs:
+  enforce-staging:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure PR comes from staging
+        run: |
+          if [ "${{ github.head_ref }}" != "staging" ]; then
+            echo "PRs to main must come from staging"
+            exit 1
+          fi
   lint:
     runs-on: ubuntu-latest
     steps:
