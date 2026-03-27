@@ -5,7 +5,7 @@ json_repair
 sqlalchemy
 alembic
 pytest
-
+tomlkit
 llama-cpp-python
 numpy
 torch
