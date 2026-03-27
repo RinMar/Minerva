@@ -3,6 +3,7 @@ sentence-transformers
 scikit-learn
 json_repair
 sqlalchemy
+alembic
 pytest
 
 llama-cpp-python
