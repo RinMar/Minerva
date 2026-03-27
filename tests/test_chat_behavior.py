@@ -3,7 +3,7 @@ Tests for conversational behavior.
 Used to verify that the chat interface and model mock functionality work as expected.
 """
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -44,6 +44,19 @@ class TestChatBehavior(unittest.TestCase):
         # Mock cross-encoder mapping inside the chat so it doesn't load a huge model
         self.mock_cross_encoder = MagicMock()
         self.mock_cross_encoder.predict.side_effect = lambda pairs: [0.9] * len(pairs)
+
+        # Patch embedding and reranker models to avoid heavy loading
+        self.patcher_emb = patch('src.models.rag_chat.get_embedding_model')
+        self.patcher_rerank = patch('src.models.rag_chat.get_reranker_model')
+        self.mock_emb_model = self.patcher_emb.start()
+        self.mock_rerank_model = self.patcher_rerank.start()
+
+        # Mock encode returns for retrieval tests
+        self.mock_emb_model.return_value.encode.return_value = MagicMock(tolist=lambda: [0.1] * 384)
+
+    def tearDown(self):
+        self.patcher_emb.stop()
+        self.patcher_rerank.stop()
 
     def test_mocked_llm_retrieve_flow(self):
         """Test that RAGChat correctly parses a <tool> block from the LLM, executes it, and feeds it back."""

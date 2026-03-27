@@ -30,6 +30,8 @@ class TestGUIBridge(unittest.TestCase):
             mock_chat_class.return_value = self.mock_chat_instance
 
             self.bridge = Bridge(page=self.mock_page, user_id=1, user_name="test_gui_user")
+            # Set the mock assistant directly as initialization is now deferred to a background thread
+            self.bridge.assistant = self.mock_chat_instance
 
     def test_bridge_initialization(self):
         self.assertEqual(self.bridge.user_name, "test_gui_user")
