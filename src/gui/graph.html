@@ -46,6 +46,39 @@
             text-transform: uppercase;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06);
             background: linear-gradient(180deg, rgba(167, 139, 250, 0.06) 0%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-actions button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #a78bfa;
+            border-radius: 6px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .header-actions button:hover {
+            background: rgba(167, 139, 250, 0.15);
+            border-color: rgba(167, 139, 250, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .header-actions button:active {
+            transform: translateY(0);
         }
 
         #chat-messages {
@@ -211,7 +244,13 @@
 <body>
     <!-- Chat Panel -->
     <div id="chat-panel">
-        <div id="chat-header">💬 Minerva Chat</div>
+        <div id="chat-header">
+            <span>💬 Minerva Chat</span>
+            <div class="header-actions">
+                <button id="user-btn" onclick="pyBridge.handle_user_click()" title="Switch User">👤</button>
+                <button id="settings-btn" onclick="pyBridge.handle_settings_click()" title="Settings">⚙️</button>
+            </div>
+        </div>
         <div id="chat-messages">
             <div class="msg system">Connected to Minerva. Your knowledge graph is loading…</div>
         </div>
@@ -284,7 +323,15 @@
         // ── Called from Python ──
         function updateGraph(dataUpdate) {
             if (dataUpdate.nodes) {
+                var newNodes = dataUpdate.nodes.map(function(n) { return String(n.id); });
+                var currentNodes = nodes.getIds();
+                var nodesToRemove = currentNodes.filter(function(id) { return !newNodes.includes(String(id)); });
+                if (nodesToRemove.length > 0) {
+                    nodes.remove(nodesToRemove);
+                }
+
                 dataUpdate.nodes.forEach(function (n) {
+                    n.id = String(n.id);
                     if (nodes.get(n.id)) {
                         nodes.update(n);
                     } else {
@@ -294,15 +341,32 @@
             }
 
             if (dataUpdate.edges) {
+                var newEdges = [];
                 dataUpdate.edges.forEach(function (e) {
-                    var id = e.id || (e.from + "_" + e.to + "_" + e.label);
-                    if (!edges.get(id)) {
+                    var id = e.id || (String(e.from) + "_" + String(e.to) + "_" + (e.label || ""));
+                    e.id = id;
+                    newEdges.push(id);
+                });
+
+                var currentEdges = edges.getIds();
+                var edgesToRemove = currentEdges.filter(function(id) { return !newEdges.includes(String(id)); });
+                if (edgesToRemove.length > 0) {
+                    edges.remove(edgesToRemove);
+                }
+
+                dataUpdate.edges.forEach(function (e) {
+                    if (!edges.get(e.id)) {
                         edges.add({
-                            id: id,
-                            from: e.from,
-                            to: e.to,
+                            id: e.id,
+                            from: String(e.from),
+                            to: String(e.to),
                             label: e.label,
                             arrows: "to"
+                        });
+                    } else {
+                        edges.update({
+                            id: e.id,
+                            label: e.label
                         });
                     }
                 });
@@ -313,6 +377,13 @@
                 'Nodes: ' + nodes.length + '  |  Edges: ' + edges.length;
         }
 
+        function clearGraph() {
+            nodes.clear();
+            edges.clear();
+            document.getElementById('graph-stats').textContent = 'Nodes: 0  |  Edges: 0';
+        }
+
+
         // ── Called from Python to show a chat message ──
         function appendMessage(role, text) {
             var container = document.getElementById('chat-messages');
@@ -321,6 +392,11 @@
             div.textContent = text;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
+        }
+
+        function clearChat() {
+            var container = document.getElementById('chat-messages');
+            container.innerHTML = '<div class="msg system">Connected to Minerva. Your knowledge graph is loading…</div>';
         }
 
         // ── Streaming support ──

@@ -12,7 +12,7 @@ import re
 # Import heavy AI models before PySide6 to prevent Shiboken import hook slowdowns
 from src.chat import Chat
 
-from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QInputDialog
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtCore import QObject, Slot, Signal, QUrl, QTimer
@@ -28,6 +28,7 @@ class Bridge(QObject):
     stream_start = Signal()
     stream_token = Signal(str)
     stream_state = Signal(str)
+    user_switch_requested = Signal()
 
     def __init__(self, page, user_name="user"):
         super().__init__()
@@ -40,6 +41,29 @@ class Bridge(QObject):
         self.stream_start.connect(self._push_stream_start)
         self.stream_token.connect(self._push_stream_token)
         self.stream_state.connect(self._push_stream_state)
+
+    @Slot()
+    def handle_user_click(self):
+        """Called from JS when the user button is clicked."""
+        print("[GUI] User button clicked")
+        self.user_switch_requested.emit()
+
+    @Slot()
+    def handle_settings_click(self):
+        """Called from JS when the settings button is clicked."""
+        print("[GUI] Settings button clicked")
+        # Placeholder for now
+        self.page.runJavaScript("alert('Settings functionality coming soon!')")
+
+    def update_user(self, new_user_name):
+        """Update the active user and re-initialize the assistant."""
+        print(f"[GUI] Switching bridge to user: '{new_user_name}'")
+        self.user_name = new_user_name
+        
+        # Reuse existing LLM instance to prevent reloading large weights
+        existing_llm = getattr(self.assistant, "llm", None)
+        self.assistant = Chat(user_name=new_user_name, llm=existing_llm)
+        self.page.runJavaScript("clearChat(); clearGraph();")
 
     @Slot(str)
     def send_message(self, message):
@@ -211,7 +235,7 @@ class MainWindow(QMainWindow):
     def __init__(self, user_name="user"):
         super().__init__()
         self.user_name = user_name
-        self.setWindowTitle("Minerva — Knowledge Graph")
+        self.setWindowTitle(f"Minerva — Knowledge Graph ({self.user_name})")
 
         self.web = QWebEngineView()
 
@@ -220,6 +244,9 @@ class MainWindow(QMainWindow):
         self.bridge = Bridge(self.web.page(), user_name=self.user_name)
         self.channel.registerObject("pyBridge", self.bridge)
         self.web.page().setWebChannel(self.channel)
+
+        # Connect user switch signal
+        self.bridge.user_switch_requested.connect(self.on_user_switch_requested)
 
         # Load HTML using absolute path
         html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "graph.html"))
@@ -236,6 +263,22 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
+
+    @Slot()
+    def on_user_switch_requested(self):
+        """Show dialog to change the current user."""
+        new_user, ok = QInputDialog.getText(
+            self, "Switch User",
+            "Enter username (this will connect to a separate knowledge graph):",
+            text=self.user_name
+        )
+
+        if ok and new_user and new_user != self.user_name:
+            print(f"[GUI] Switching user from '{self.user_name}' to '{new_user}'")
+            self.user_name = new_user
+            self.bridge.update_user(new_user)
+            self.load_graph_data()
+            self.setWindowTitle(f"Minerva — Knowledge Graph ({self.user_name})")
 
     def on_load_finished(self, ok):
         if not ok:
