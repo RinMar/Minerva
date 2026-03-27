@@ -11,6 +11,8 @@ import re
 
 # Import heavy AI models before PySide6 to prevent Shiboken import hook slowdowns
 from src.chat import Chat
+from src.config import config, update_config_mode, save_performance_mode
+from src.models.embeddings import reset_models
 
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -31,19 +33,64 @@ class Bridge(QObject):
     stream_state = Signal(str)
     user_switch_requested = Signal()
     profile_changed = Signal(int, str)
+    model_loading_status = Signal(bool, str)  # (is_loading, message)
 
     def __init__(self, page, user_id, user_name):
         super().__init__()
         self.page = page
         self.user_id = user_id
         self.user_name = user_name
-        self.assistant = Chat(user_id=user_id)
+        self.assistant = None  # Initialized in background
 
         # Connect signal → slot for thread-safe UI updates
         self.response_ready.connect(self._push_assistant_message)
         self.stream_start.connect(self._push_stream_start)
         self.stream_token.connect(self._push_stream_token)
         self.stream_state.connect(self._push_stream_state)
+        self.model_loading_status.connect(self._handle_model_loading_status)
+
+    def _handle_model_loading_status(self, is_loading, message):
+        """Thread-safe slot to toggle the UI loader."""
+        if is_loading:
+            escaped_msg = json.dumps(message)
+            self.page.runJavaScript(f"showModelLoader({escaped_msg})")
+        else:
+            self.page.runJavaScript("hideModelLoader()")
+
+    def initialize_assistant(self, existing_llm=None):
+        """Start the assistant initialization in a background thread."""
+        thread = threading.Thread(
+            target=self._bg_init_assistant,
+            args=(existing_llm,),
+            daemon=True
+        )
+        thread.start()
+
+    def _bg_init_assistant(self, existing_llm=None):
+        """Perform the actual model loading in the background."""
+        msg = "Loading AI Models..." if not existing_llm else "Switching Profile..."
+        self.model_loading_status.emit(True, msg)
+
+        try:
+            # Initialize the Chat object (this triggers heavy model loading/warm-up)
+            self.assistant = Chat(user_id=self.user_id, llm=existing_llm)
+
+            # Ensure embedding/reranker are also warmed up while we show the loader
+            # if they haven't been loaded yet.
+            if hasattr(self.assistant, "emb_model"):
+                _ = self.assistant.emb_model
+            if hasattr(self.assistant, "cross_encoder"):
+                _ = self.assistant.cross_encoder
+
+            print(f"[GUI] Assistant initialized for user {self.user_id}")
+        except Exception as e:
+            try:
+                print(f"[GUI] WARNING: Error during model loading: {e}")
+            except Exception:
+                pass  # Swallow print encoding errors on Windows
+        finally:
+            # ALWAYS hide the loader, even if initialization failed
+            self.model_loading_status.emit(False, "")
 
     @Slot()
     def handle_user_click(self):
@@ -120,8 +167,7 @@ class Bridge(QObject):
     def handle_settings_click(self):
         """Called from JS when the settings button is clicked."""
         print("[GUI] Settings button clicked")
-        # Placeholder for now
-        self.page.runJavaScript("alert('Settings functionality coming soon!')")
+        self.page.runJavaScript("showSettings()")
 
     def update_user(self, new_user_id, new_user_name):
         """Update the active user and re-initialize the assistant."""
@@ -130,13 +176,41 @@ class Bridge(QObject):
         self.user_name = new_user_name
 
         # Reuse existing LLM instance to prevent reloading large weights
-        existing_llm = getattr(self.assistant, "llm", None)
-        self.assistant = Chat(user_id=new_user_id, llm=existing_llm)
+        existing_llm = getattr(self.assistant, "llm", None) if self.assistant else None
         self.page.runJavaScript("clearChat(); clearGraph();")
+        self.initialize_assistant(existing_llm=existing_llm)
+
+    @Slot(str)
+    def update_performance_mode(self, mode):
+        """Switch performance mode, reload config, and re-initialize models."""
+        print(f"[GUI] Requested performance mode switch: {mode}")
+
+        # 1. Update persisted config and global object
+        save_performance_mode(mode)
+        update_config_mode(mode)
+
+        # 2. Reset lazy-loaded models
+        reset_models()
+
+        # 3. Re-initialize assistant (with loader visible)
+        self.page.runJavaScript("clearChat(); clearGraph();")
+
+        # Important: pass None as existing_llm to force full reload of the main LLM too
+        # so it picks up the new n_ctx and n_gpu_layers.
+        self.initialize_assistant(existing_llm=None)
+
+    @Slot(result=str)
+    def get_performance_mode(self):
+        """Return the current performance mode for the UI."""
+        return config.get("performance_mode", "low")
 
     @Slot(str)
     def send_message(self, message):
         """Called from JavaScript when the user sends a chat message."""
+        if not self.assistant:
+            print("[GUI] WARNING: Cannot send message: Assistant not initialized")
+            return
+
         print(f"\n[GUI] User message: {message}")
 
         # Run generation in a background thread to avoid freezing the UI
@@ -324,7 +398,7 @@ class MainWindow(QMainWindow):
         print(f"[GUI] Loading HTML from: {html_path}")
         self.web.load(QUrl.fromLocalFile(html_path))
 
-        # Load graph data once the page finishes loading
+        # Load graph data and start model loading once the page finishes loading
         self.web.loadFinished.connect(self.on_load_finished)
 
         layout = QVBoxLayout()
@@ -351,10 +425,13 @@ class MainWindow(QMainWindow):
 
     def on_load_finished(self, ok):
         if not ok:
-            print("[GUI] ⚠ HTML page failed to load!")
+            print("[GUI] WARNING: HTML page failed to load!")
             return
 
-        print("[GUI] ✓ HTML page loaded successfully")
+        print("[GUI] HTML page loaded successfully")
+
+        # Start loading AI models in background (loader is already visible in HTML)
+        self.bridge.initialize_assistant()
 
         # Small delay to let JS fully initialize before pushing data
         QTimer.singleShot(300, self.load_graph_data)

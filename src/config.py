@@ -35,6 +35,9 @@ triplet_model_id = "Babelscape/rebel-large"
 [user]
 last_user_id = 1
 last_user_name = "user"
+
+[settings]
+performance_mode = "low"
 """
 
 
@@ -72,8 +75,10 @@ def load_config():
         with open(CONFIG_PATH, "rb") as f:
             raw_config = tomllib.load(f)
 
-            # Identify mode from environment variable
-            mode = os.environ.get("MINERVA_PERFORMANCE", "low").lower()
+            # Identify mode: 1. Environment, 2. Config file, 3. Default "low"
+            env_mode = os.environ.get("MINERVA_PERFORMANCE")
+            config_mode = raw_config.get("settings", {}).get("performance_mode")
+            mode = (env_mode or config_mode or "low").lower()
 
             # Base LLM settings
             llm_config = raw_config.get("llm", {})
@@ -95,6 +100,16 @@ def load_config():
     except Exception as e:
         print(f"Warning: Failed to load configuration from {CONFIG_PATH}: {e}")
         return default_config
+
+
+def update_config_mode(mode: str):
+    """Update the global config object with a new performance mode."""
+    os.environ["MINERVA_PERFORMANCE"] = mode.lower()
+    new_config = load_config()
+    config.clear()
+    config.update(new_config)
+    print(f"[Config] Updated performance mode to: {mode}")
+    return config
 
 
 def save_last_user(user_id: int, user_name: str):
@@ -119,6 +134,29 @@ def save_last_user(user_id: int, user_name: str):
 
     except Exception as e:
         print(f"Warning: Failed to save last user to {CONFIG_PATH}: {e}")
+
+
+def save_performance_mode(mode: str):
+    """Safely update the [settings] section in config.toml with the performance mode."""
+    try:
+        if os.path.exists(CONFIG_PATH):
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                doc = tomlkit.parse(f.read())
+        else:
+            doc = tomlkit.document()
+
+        if "settings" not in doc:
+            doc["settings"] = tomlkit.table()
+
+        doc["settings"]["performance_mode"] = mode.lower()
+
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            f.write(tomlkit.dumps(doc))
+
+        print(f"[Config] Persisted performance mode: {mode}")
+
+    except Exception as e:
+        print(f"Warning: Failed to save performance mode to {CONFIG_PATH}: {e}")
 
 
 config = load_config()
