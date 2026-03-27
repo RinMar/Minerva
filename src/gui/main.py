@@ -109,7 +109,7 @@ class Bridge(QObject):
                 user.name = new_name
                 session.commit()
                 print(f"[GUI] Renamed user '{old_name}' to '{new_name}'")
-                
+
                 # If the renamed user is the active one, update state
                 if self.user_name == old_name:
                     self.user_name = new_name
