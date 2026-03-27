@@ -38,7 +38,6 @@ class EntityNode(Base):
 
     id = Column(String(64), primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    user_name = Column(String, index=True)  # Deprecated
     name = Column(String, index=True)
     topic = Column(String, index=True)
     text = Column(String, nullable=False)
@@ -50,7 +49,6 @@ class GraphEdge(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    user_name = Column(String, index=True)  # Deprecated
     source_id = Column(String(64), ForeignKey("entities.id", ondelete="CASCADE"))
     target_id = Column(String(64), ForeignKey("entities.id", ondelete="CASCADE"))
     source_name = Column(String, index=True)
@@ -63,7 +61,6 @@ class EmbeddingIndex(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    user_name = Column(String, index=True)  # Deprecated
     collection = Column(String, index=True)  # "entity" or "edge"
     source_id = Column(String, index=True)   # ID of EntityNode or GraphEdge
     text_content = Column(Text, nullable=False)

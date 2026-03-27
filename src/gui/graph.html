@@ -103,14 +103,15 @@
         }
 
         .dropdown-item {
-            padding: 12px 16px;
+            padding: 10px 16px;
             font-size: 13px;
             color: #d0d0da;
             cursor: pointer;
             transition: all 0.2s;
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: space-between;
+            position: relative;
         }
 
         .dropdown-item:hover {
@@ -118,10 +119,50 @@
             color: #a78bfa;
         }
 
+        .dropdown-item .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .dropdown-item.active {
             color: #a78bfa;
             font-weight: 600;
             background: rgba(167, 139, 250, 0.05);
+        }
+
+        .edit-icon {
+            opacity: 0;
+            font-size: 12px;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            color: #777;
+        }
+
+        .dropdown-item:hover .edit-icon {
+            opacity: 1;
+        }
+
+        .edit-icon:hover {
+            background: rgba(167, 139, 250, 0.2);
+            color: #a78bfa;
+        }
+
+        /* Rename input */
+        .rename-input {
+            background: #0f0f13;
+            border: 1px solid #a78bfa;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 13px;
+            color: #e0e0e6;
+            outline: none;
+            width: 100%;
         }
 
         .dropdown-divider {
@@ -601,8 +642,22 @@
                     users.forEach(u => {
                         const item = document.createElement('div');
                         item.className = 'dropdown-item';
-                        item.innerHTML = '👤 ' + u;
-                        item.onclick = function() {
+                        item.id = 'user-item-' + u;
+                        
+                        const info = document.createElement('div');
+                        info.className = 'user-info';
+                        info.innerHTML = '👤 <span class="user-name-text">' + u + '</span>';
+                        item.appendChild(info);
+
+                        const edit = document.createElement('div');
+                        edit.className = 'edit-icon';
+                        edit.innerHTML = '✏️';
+                        edit.title = 'Rename Profile';
+                        edit.onclick = (e) => startRename(e, u);
+                        item.appendChild(edit);
+
+                        item.onclick = function(e) {
+                            if (e.target.closest('.edit-icon') || e.target.closest('.rename-input')) return;
                             pyBridge.switch_profile(u);
                             toggleProfileDropdown();
                         };
@@ -614,6 +669,40 @@
                 dropdown.style.display = 'none';
                 document.getElementById('add-profile-input-area').style.display = 'none';
             }
+        }
+
+        function startRename(event, oldName) {
+            event.stopPropagation();
+            const item = document.getElementById('user-item-' + oldName);
+            const info = item.querySelector('.user-info');
+            const originalHTML = info.innerHTML;
+            
+            info.innerHTML = '👤 ';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'rename-input';
+            input.value = oldName;
+            
+            input.onclick = (e) => e.stopPropagation();
+            input.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    const newName = input.value.trim();
+                    if (newName && newName !== oldName) {
+                        pyBridge.rename_user(oldName, newName);
+                        // Optimistically update UI
+                        info.innerHTML = '👤 <span class="user-name-text">' + newName + '</span>';
+                        item.id = 'user-item-' + newName;
+                    } else {
+                        info.innerHTML = originalHTML;
+                    }
+                } else if (e.key === 'Escape') {
+                    info.innerHTML = originalHTML;
+                }
+            };
+            
+            info.appendChild(input);
+            input.focus();
+            input.select();
         }
 
         function showAddProfileInput(event) {

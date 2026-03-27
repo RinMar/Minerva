@@ -97,6 +97,25 @@ class Bridge(QObject):
         self.update_user(self.user_id, self.user_name)
         self.profile_changed.emit(self.user_id, self.user_name)
 
+    @Slot(str, str)
+    def rename_user(self, old_name, new_name):
+        """Rename a user profile in the database."""
+        if not new_name.strip() or old_name == new_name:
+            return
+
+        with get_session() as session:
+            user = session.query(User).filter_by(name=old_name).first()
+            if user:
+                user.name = new_name
+                session.commit()
+                print(f"[GUI] Renamed user '{old_name}' to '{new_name}'")
+                
+                # If the renamed user is the active one, update state
+                if self.user_name == old_name:
+                    self.user_name = new_name
+                    save_last_user(self.user_id, self.user_name)
+                    self.profile_changed.emit(self.user_id, self.user_name)
+
     @Slot()
     def handle_settings_click(self):
         """Called from JS when the settings button is clicked."""
@@ -328,6 +347,7 @@ class MainWindow(QMainWindow):
         self.user_name = user_name
         self.setWindowTitle(f"Minerva — Knowledge Graph ({self.user_name})")
         print(f"[GUI] Switched to profile: {self.user_name}")
+        self.load_graph_data()
 
     def on_load_finished(self, ok):
         if not ok:

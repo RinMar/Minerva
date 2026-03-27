@@ -29,7 +29,7 @@ class TestGUIBridge(unittest.TestCase):
             self.mock_chat_instance = MagicMock()
             mock_chat_class.return_value = self.mock_chat_instance
 
-            self.bridge = Bridge(page=self.mock_page, user_name="test_gui_user")
+            self.bridge = Bridge(page=self.mock_page, user_id=1, user_name="test_gui_user")
 
     def test_bridge_initialization(self):
         self.assertEqual(self.bridge.user_name, "test_gui_user")
