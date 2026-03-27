@@ -3,7 +3,7 @@ Tests for conversational behavior.
 Used to verify that the chat interface and model mock functionality work as expected.
 """
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -12,7 +12,7 @@ from src.memory.db import Base
 import src.memory.db as db_module
 from src.memory.db import EntityNode, GraphEdge
 from src.memory.graph_manager import add_triplets
-from src.models.embeddings import get_embedding_model
+
 from src.chat import Chat
 from src.models.base_llm import CustomLLM
 from sqlalchemy.pool import StaticPool
@@ -45,16 +45,39 @@ class TestChatBehavior(unittest.TestCase):
         self.mock_cross_encoder = MagicMock()
         self.mock_cross_encoder.predict.side_effect = lambda pairs: [0.9] * len(pairs)
 
+        # Patch embedding and reranker models to avoid heavy loading
+        self.patcher_emb = patch('src.models.rag_chat.get_embedding_model')
+        self.patcher_rerank = patch('src.models.rag_chat.get_reranker_model')
+
+        # Also patch them for the background orchestrator pipeline
+        # We patch directly at the source
+        self.patcher_graph_emb = patch('src.models.embeddings.get_embedding_model')
+
+        self.mock_emb_model = self.patcher_emb.start()
+        self.mock_rerank_model = self.patcher_rerank.start()
+
+        # Start background pipeline mocks and link them to the same mock
+        self.patcher_graph_emb.start().return_value = self.mock_emb_model.return_value
+
+        # Mock encode returns for retrieval tests
+        self.mock_emb_model.return_value.encode.return_value = MagicMock(tolist=lambda: [0.1] * 384)
+
+    def tearDown(self):
+        self.patcher_emb.stop()
+        self.patcher_rerank.stop()
+        self.patcher_graph_emb.stop()
+
     def test_mocked_llm_retrieve_flow(self):
         """Test that RAGChat correctly parses a <tool> block from the LLM, executes it, and feeds it back."""
         # Add mock data to the DB so the retrieve tool actually finds something
+        mock_emb = self.mock_emb_model.return_value
         add_triplets(
             [{"head": "User", "type": "is", "tail": "test user"}],
             "profile",
             ["identity"],
             "I am a test user.",
             1,
-            get_embedding_model()
+            mock_emb
         )
 
         # Yield a tool block first, then yield the final string
@@ -138,24 +161,39 @@ class TestChatBehavior(unittest.TestCase):
 
     def test_live_llm_minimal_e2e(self):
         """
-        One step end-to-end test with real LLMs. Minimal processing to save compute.
-        We initialize RAGChat normally, trigger a tiny stream, and break early.
+        One step end-to-end test with real LLMs and real embedding models.
+        Temporarily unpatches the generic mocks to guarantee physical loading works.
         """
-        # Initialize with real models (loads local LLMs)
-        tiny_llm = CustomLLM(
-            repo_id="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
-            filename="qwen2.5-0.5b-instruct-q8_0.gguf",
-            n_ctx=2048,       # Increased to fit the initial prompt of ~1200 tokens
-            use_mlock=False   # Avoid mlock limits on Linux CI runners
-        )
+        from src.models.embeddings import reset_models
 
-        chat = RAGChat(user_id=1, llm=tiny_llm)
+        # Temporarily stop the mock patchers so real models load from disk
+        self.patcher_emb.stop()
+        self.patcher_rerank.stop()
+        self.patcher_graph_emb.stop()
 
-        generator = chat.generate("hi", stream=True)
-        # Pull exactly one token to confirm the models loaded and context successfully initialized
         try:
+            # Initialize with real models (loads local LLMs)
+            tiny_llm = CustomLLM(
+                repo_id="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+                filename="qwen2.5-0.5b-instruct-q8_0.gguf",
+                n_ctx=2048,       # Increased to fit the initial prompt of ~1200 tokens
+                use_mlock=False   # Avoid mlock limits on Linux CI runners
+            )
+
+            chat = RAGChat(user_id=1, llm=tiny_llm)
+
+            generator = chat.generate("hi", stream=True)
+            # Pull exactly one token to confirm the models loaded and context successfully initialized
             first_token = next(generator)
             self.assertIsInstance(first_token, str)
             self.assertTrue(len(first_token) >= 0)
         except StopIteration:
             self.fail("Real LLM failed to yield any tokens.")
+        finally:
+            # Free up RAM/VRAM
+            reset_models()
+            del tiny_llm
+            # Restart the patchers so tearDown() doesn't throw a RuntimeError
+            self.mock_emb_model = self.patcher_emb.start()
+            self.mock_rerank_model = self.patcher_rerank.start()
+            self.patcher_graph_emb.start().return_value = self.mock_emb_model.return_value
