@@ -46,6 +46,151 @@
             text-transform: uppercase;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06);
             background: linear-gradient(180deg, rgba(167, 139, 250, 0.06) 0%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .header-actions button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #a78bfa;
+            border-radius: 6px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .header-actions button:hover {
+            background: rgba(167, 139, 250, 0.15);
+            border-color: rgba(167, 139, 250, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .header-actions button:active {
+            transform: translateY(0);
+        }
+
+        /* ── Profile Dropdown ── */
+        .dropdown-container {
+            position: relative;
+        }
+
+        #profile-dropdown {
+            position: absolute;
+            top: 36px;
+            right: 0;
+            width: 220px;
+            background: #1e1e2a;
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+            overflow: hidden;
+        }
+
+        .dropdown-item {
+            padding: 10px 16px;
+            font-size: 13px;
+            color: #d0d0da;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(167, 139, 250, 0.1);
+            color: #a78bfa;
+        }
+
+        .dropdown-item .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .dropdown-item.active {
+            color: #a78bfa;
+            font-weight: 600;
+            background: rgba(167, 139, 250, 0.05);
+        }
+
+        .edit-icon {
+            opacity: 0;
+            font-size: 12px;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            color: #777;
+        }
+
+        .dropdown-item:hover .edit-icon {
+            opacity: 1;
+        }
+
+        .edit-icon:hover {
+            background: rgba(167, 139, 250, 0.2);
+            color: #a78bfa;
+        }
+
+        /* Rename input */
+        .rename-input {
+            background: #0f0f13;
+            border: 1px solid #a78bfa;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 13px;
+            color: #e0e0e6;
+            outline: none;
+            width: 100%;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.06);
+            margin: 4px 0;
+        }
+
+        .add-profile-input-container {
+            padding: 10px 14px;
+            display: none;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .add-profile-input-container input {
+            width: 100%;
+            background: #0f0f13;
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 12px;
+            color: #e0e0e6;
+            outline: none;
+        }
+
+        .add-profile-input-container input:focus {
+            border-color: #a78bfa;
         }
 
         #chat-messages {
@@ -211,7 +356,27 @@
 <body>
     <!-- Chat Panel -->
     <div id="chat-panel">
-        <div id="chat-header">💬 Minerva Chat</div>
+        <div id="chat-header">
+            <span>💬 Minerva Chat</span>
+            <div class="header-actions">
+                <div class="dropdown-container">
+                    <button id="user-btn" onclick="toggleProfileDropdown()" title="Switch User">👤</button>
+                    <div id="profile-dropdown">
+                        <div id="user-list">
+                            <!-- Populated via JS -->
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-item" onclick="showAddProfileInput(event)" id="add-profile-item">
+                            <span>➕</span> Add New Profile...
+                        </div>
+                        <div class="add-profile-input-container" id="add-profile-input-area">
+                            <input type="text" id="new-profile-name" placeholder="Enter name..." onkeydown="handleNewProfileKeyDown(event)">
+                        </div>
+                    </div>
+                </div>
+                <button id="settings-btn" onclick="pyBridge.handle_settings_click()" title="Settings">⚙️</button>
+            </div>
+        </div>
         <div id="chat-messages">
             <div class="msg system">Connected to Minerva. Your knowledge graph is loading…</div>
         </div>
@@ -284,7 +449,15 @@
         // ── Called from Python ──
         function updateGraph(dataUpdate) {
             if (dataUpdate.nodes) {
+                var newNodes = dataUpdate.nodes.map(function(n) { return String(n.id); });
+                var currentNodes = nodes.getIds();
+                var nodesToRemove = currentNodes.filter(function(id) { return !newNodes.includes(String(id)); });
+                if (nodesToRemove.length > 0) {
+                    nodes.remove(nodesToRemove);
+                }
+
                 dataUpdate.nodes.forEach(function (n) {
+                    n.id = String(n.id);
                     if (nodes.get(n.id)) {
                         nodes.update(n);
                     } else {
@@ -294,15 +467,32 @@
             }
 
             if (dataUpdate.edges) {
+                var newEdges = [];
                 dataUpdate.edges.forEach(function (e) {
-                    var id = e.id || (e.from + "_" + e.to + "_" + e.label);
-                    if (!edges.get(id)) {
+                    var id = e.id || (String(e.from) + "_" + String(e.to) + "_" + (e.label || ""));
+                    e.id = id;
+                    newEdges.push(id);
+                });
+
+                var currentEdges = edges.getIds();
+                var edgesToRemove = currentEdges.filter(function(id) { return !newEdges.includes(String(id)); });
+                if (edgesToRemove.length > 0) {
+                    edges.remove(edgesToRemove);
+                }
+
+                dataUpdate.edges.forEach(function (e) {
+                    if (!edges.get(e.id)) {
                         edges.add({
-                            id: id,
-                            from: e.from,
-                            to: e.to,
+                            id: e.id,
+                            from: String(e.from),
+                            to: String(e.to),
                             label: e.label,
                             arrows: "to"
+                        });
+                    } else {
+                        edges.update({
+                            id: e.id,
+                            label: e.label
                         });
                     }
                 });
@@ -313,6 +503,13 @@
                 'Nodes: ' + nodes.length + '  |  Edges: ' + edges.length;
         }
 
+        function clearGraph() {
+            nodes.clear();
+            edges.clear();
+            document.getElementById('graph-stats').textContent = 'Nodes: 0  |  Edges: 0';
+        }
+
+
         // ── Called from Python to show a chat message ──
         function appendMessage(role, text) {
             var container = document.getElementById('chat-messages');
@@ -321,6 +518,11 @@
             div.textContent = text;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
+        }
+
+        function clearChat() {
+            var container = document.getElementById('chat-messages');
+            container.innerHTML = '<div class="msg system">Connected to Minerva. Your knowledge graph is loading…</div>';
         }
 
         // ── Streaming support ──
@@ -426,6 +628,110 @@
                 window.pyBridge = channel.objects.pyBridge;
             });
         }
+
+        // ── Profile Dropdown Logic ──
+        function toggleProfileDropdown() {
+            const dropdown = document.getElementById('profile-dropdown');
+            const isVisible = dropdown.style.display === 'flex';
+            
+            if (!isVisible) {
+                // Populate users
+                pyBridge.get_user_list(function(users) {
+                    const list = document.getElementById('user-list');
+                    list.innerHTML = '';
+                    users.forEach(u => {
+                        const item = document.createElement('div');
+                        item.className = 'dropdown-item';
+                        item.id = 'user-item-' + u;
+                        
+                        const info = document.createElement('div');
+                        info.className = 'user-info';
+                        info.innerHTML = '👤 <span class="user-name-text">' + u + '</span>';
+                        item.appendChild(info);
+
+                        const edit = document.createElement('div');
+                        edit.className = 'edit-icon';
+                        edit.innerHTML = '✏️';
+                        edit.title = 'Rename Profile';
+                        edit.onclick = (e) => startRename(e, u);
+                        item.appendChild(edit);
+
+                        item.onclick = function(e) {
+                            if (e.target.closest('.edit-icon') || e.target.closest('.rename-input')) return;
+                            pyBridge.switch_profile(u);
+                            toggleProfileDropdown();
+                        };
+                        list.appendChild(item);
+                    });
+                    dropdown.style.display = 'flex';
+                });
+            } else {
+                dropdown.style.display = 'none';
+                document.getElementById('add-profile-input-area').style.display = 'none';
+            }
+        }
+
+        function startRename(event, oldName) {
+            event.stopPropagation();
+            const item = document.getElementById('user-item-' + oldName);
+            const info = item.querySelector('.user-info');
+            const originalHTML = info.innerHTML;
+            
+            info.innerHTML = '👤 ';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'rename-input';
+            input.value = oldName;
+            
+            input.onclick = (e) => e.stopPropagation();
+            input.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    const newName = input.value.trim();
+                    if (newName && newName !== oldName) {
+                        pyBridge.rename_user(oldName, newName);
+                        // Optimistically update UI
+                        info.innerHTML = '👤 <span class="user-name-text">' + newName + '</span>';
+                        item.id = 'user-item-' + newName;
+                    } else {
+                        info.innerHTML = originalHTML;
+                    }
+                } else if (e.key === 'Escape') {
+                    info.innerHTML = originalHTML;
+                }
+            };
+            
+            info.appendChild(input);
+            input.focus();
+            input.select();
+        }
+
+        function showAddProfileInput(event) {
+            event.stopPropagation();
+            document.getElementById('add-profile-input-area').style.display = 'block';
+            document.getElementById('new-profile-name').focus();
+        }
+
+        function handleNewProfileKeyDown(event) {
+            if (event.key === 'Enter') {
+                const name = event.target.value.trim();
+                if (name) {
+                    pyBridge.create_profile(name);
+                    toggleProfileDropdown();
+                }
+            } else if (event.key === 'Escape') {
+                document.getElementById('add-profile-input-area').style.display = 'none';
+            }
+        }
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('profile-dropdown');
+            const userBtn = document.getElementById('user-btn');
+            if (dropdown.style.display === 'flex' && !dropdown.contains(e.target) && e.target !== userBtn) {
+                dropdown.style.display = 'none';
+                document.getElementById('add-profile-input-area').style.display = 'none';
+            }
+        });
 
         initNetwork();
     </script>

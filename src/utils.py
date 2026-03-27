@@ -15,6 +15,7 @@ def cosine_similarity(v1, v2):
     return float(sklearn_cosine_similarity(v1_2d, v2_2d)[0][0])
 
 
-def fact_id(text: str) -> str:
-    """Generate a deterministic short fact ID: f_ + first 8 hex chars of SHA256."""
-    return "f_" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
+def fact_id(text: str, user_id: int = None) -> str:
+    """Generate a deterministic short fact ID, salted with user_id if provided."""
+    salt = f"{user_id}_" if user_id is not None else ""
+    return "f_" + hashlib.sha256((salt + text).encode("utf-8")).hexdigest()[:8]

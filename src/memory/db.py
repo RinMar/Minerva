@@ -26,11 +26,18 @@ def get_session():
         session.close()
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+
+
 class EntityNode(Base):
     __tablename__ = "entities"
 
     id = Column(String(64), primary_key=True, index=True)
-    user_name = Column(String, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name = Column(String, index=True)
     topic = Column(String, index=True)
     text = Column(String, nullable=False)
@@ -41,7 +48,7 @@ class GraphEdge(Base):
     __tablename__ = "edges"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_name = Column(String, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     source_id = Column(String(64), ForeignKey("entities.id", ondelete="CASCADE"))
     target_id = Column(String(64), ForeignKey("entities.id", ondelete="CASCADE"))
     source_name = Column(String, index=True)
@@ -53,7 +60,7 @@ class EmbeddingIndex(Base):
     __tablename__ = "embeddings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_name = Column(String, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     collection = Column(String, index=True)  # "entity" or "edge"
     source_id = Column(String, index=True)   # ID of EntityNode or GraphEdge
     text_content = Column(Text, nullable=False)

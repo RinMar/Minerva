@@ -17,13 +17,13 @@ class RAGChat(ChatLlm):
     tools formulated by the LLM. It intercepts tool calls mid-stream, silently fetches
     knowledge, and returns the context so the model can seamlessly respond to the user.
     """
-    def __init__(self, user_name="user", llm=None):
+    def __init__(self, user_id, llm=None):
         # Create one shared LLM if not provided
         if llm is None:
             llm = CustomLLM()
 
         super().__init__(llm=llm)
-        self.user_name = user_name
+        self.user_id = user_id
 
         self._emb_model = None
         self._cross_encoder = None
@@ -31,7 +31,7 @@ class RAGChat(ChatLlm):
         self.orchestrator = MemoryOrchestrator(
             llm=self.llm,
             emb_model=self.emb_model,
-            user_name=user_name,
+            user_id=user_id,
             cross_encoder=self.cross_encoder
         )
 
@@ -74,7 +74,7 @@ class RAGChat(ChatLlm):
         search_emb = self.emb_model.encode(query).tolist()
         context = retrieve_context(
             query_emb=search_emb,
-            user_name=self.user_name,
+            user_id=self.user_id,
             cross_encoder=self.cross_encoder,
             query_text=query,
         )

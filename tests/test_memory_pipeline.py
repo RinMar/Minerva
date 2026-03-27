@@ -41,15 +41,16 @@ class TestMemoryPipeline(unittest.TestCase):
             session.query(GraphEdge).delete()
             session.commit()
 
+        self.user_id = 1
         self.user_name = "test_user"
 
     def test_add_triplets(self):
         """Test graph_manager.add_triplets successfully creates EntityNodes and GraphEdges."""
         triplets = [{"head": "User", "type": "loves", "tail": "pasta"}]
-        add_triplets(triplets, "hobbies", ["food"], "The user loves pasta.", self.user_name, get_embedding_model())
+        add_triplets(triplets, "hobbies", ["food"], "The user loves pasta.", self.user_id, get_embedding_model())
         with get_session() as session:
             entities = session.query(EntityNode).filter(
-                EntityNode.user_name == self.user_name
+                EntityNode.user_id == self.user_id
             ).all()
             self.assertEqual(len(entities), 2)
             names = [e.name for e in entities]
@@ -63,10 +64,10 @@ class TestMemoryPipeline(unittest.TestCase):
     def test_update_entity_text(self):
         """Test that adding a new triplet for the same entity appends to its summary."""
         triplets1 = [{"head": "User", "type": "loves", "tail": "pasta"}]
-        add_triplets(triplets1, "hobbies", ["food"], "User loves pasta.", self.user_name, get_embedding_model())
+        add_triplets(triplets1, "hobbies", ["food"], "User loves pasta.", self.user_id, get_embedding_model())
 
         triplets2 = [{"head": "User", "type": "plays", "tail": "tennis"}]
-        add_triplets(triplets2, "hobbies", ["sports"], "User plays tennis.", self.user_name, get_embedding_model())
+        add_triplets(triplets2, "hobbies", ["sports"], "User plays tennis.", self.user_id, get_embedding_model())
 
         with get_session() as session:
             entities = session.query(EntityNode).filter(EntityNode.name == "User").all()
@@ -77,7 +78,7 @@ class TestMemoryPipeline(unittest.TestCase):
     def test_delete_fact(self):
         """Test fact deletion functionality."""
         triplets = [{"head": "OldIdea", "type": "is", "tail": "bad"}]
-        add_triplets(triplets, "misc", ["test"], "To be deleted.", self.user_name, get_embedding_model())
+        add_triplets(triplets, "misc", ["test"], "To be deleted.", self.user_id, get_embedding_model())
 
         # Verify it went in
         with get_session() as session:
@@ -87,7 +88,7 @@ class TestMemoryPipeline(unittest.TestCase):
             self.assertEqual(edges, 1)
 
         # Delete it via store
-        delete_fact("To be deleted.", get_embedding_model(), self.user_name)
+        delete_fact("To be deleted.", get_embedding_model(), self.user_id)
 
         # Verify entity text is gone, and since it was the only text, the entity itself should drop
         with get_session() as session:
@@ -99,11 +100,11 @@ class TestMemoryPipeline(unittest.TestCase):
     def test_update_fact_removes_old_edges(self):
         """Test that updating a fact removes old edges correctly without deleting the entity."""
         triplets_old = [{"head": "User", "type": "lives in", "tail": "Paris"}]
-        add_triplets(triplets_old, "location", ["city"], "User lives in Paris.", self.user_name, get_embedding_model())
+        add_triplets(triplets_old, "location", ["city"], "User lives in Paris.", self.user_id, get_embedding_model())
 
         # Add another unrelated fact to same entity to keep it alive
         triplets_keep = [{"head": "User", "type": "likes", "tail": "coffee"}]
-        add_triplets(triplets_keep, "preference", ["food"], "User likes coffee.", self.user_name, get_embedding_model())
+        add_triplets(triplets_keep, "preference", ["food"], "User likes coffee.", self.user_id, get_embedding_model())
 
         with get_session() as session:
             self.assertEqual(session.query(GraphEdge).count(), 2)
@@ -111,7 +112,7 @@ class TestMemoryPipeline(unittest.TestCase):
             self.assertIn("lives in Paris", user_node.text)
 
         # "Update" by deleting old fact text
-        delete_fact("User lives in Paris", get_embedding_model(), self.user_name)
+        delete_fact("User lives in Paris", get_embedding_model(), self.user_id)
 
         with get_session() as session:
             # The edge for Paris should be gone, coffee remains (1 edge left)
@@ -130,20 +131,20 @@ class TestMemoryPipeline(unittest.TestCase):
             {"head": "NodeA", "type": "rel1", "tail": "NodeB"},
             {"head": "NodeA", "type": "rel2", "tail": "NodeC"}
         ]
-        add_triplets(triplets, "test", ["test"], "A to B and C", self.user_name, get_embedding_model())
+        add_triplets(triplets, "test", ["test"], "A to B and C", self.user_id, get_embedding_model())
 
         with get_session() as session:
             node_A = session.query(EntityNode).filter_by(name="NodeA").first()
             node_B = session.query(EntityNode).filter_by(name="NodeB").first()
             node_C = session.query(EntityNode).filter_by(name="NodeC").first()
 
-            expanded = expand_nodes([node_A.id], self.user_name, depth=1)
+            expanded = expand_nodes([node_A.id], self.user_id, depth=1)
             self.assertIn(node_A.id, expanded)
             self.assertIn(node_B.id, expanded)
             self.assertIn(node_C.id, expanded)
 
             # Ensure bidirectional expansion
-            expanded_reverse = expand_nodes([node_B.id], self.user_name, depth=1)
+            expanded_reverse = expand_nodes([node_B.id], self.user_id, depth=1)
             self.assertIn(node_A.id, expanded_reverse)
 
     @patch("src.memory.orchestrator.extract_triplets")
@@ -156,7 +157,7 @@ class TestMemoryPipeline(unittest.TestCase):
         orchestrator = MemoryOrchestrator(
             llm=MagicMock(),
             emb_model=get_embedding_model(),
-            user_name=self.user_name
+            user_id=self.user_id
         )
 
         # Run a storage pipeline for a single mock new fact
@@ -185,7 +186,7 @@ class TestMemoryPipeline(unittest.TestCase):
         orchestrator = MemoryOrchestrator(
             llm=MagicMock(),
             emb_model=get_embedding_model(),
-            user_name=self.user_name
+            user_id=self.user_id
         )
 
         # Run a storage pipeline with string-formatted triplets
@@ -199,7 +200,7 @@ class TestMemoryPipeline(unittest.TestCase):
 
         # Verify entities and edges exist
         with get_session() as session:
-            count = session.query(EntityNode).filter_by(user_name=self.user_name).count()
+            count = session.query(EntityNode).filter_by(user_id=self.user_id).count()
             self.assertGreater(count, 0)
 
             # Check for specific edge

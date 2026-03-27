@@ -32,6 +32,7 @@ class TestContextRetrieval(unittest.TestCase):
         db_module._engine = test_engine
         db_module.SessionLocal = TestSessionLocal
         Base.metadata.create_all(test_engine)
+        cls.user_id = 1
         cls.user_name = "test_user"
 
     def setUp(self):
@@ -45,11 +46,11 @@ class TestContextRetrieval(unittest.TestCase):
         # 1. Setup data
         with get_session() as session:
             # Create an entity
-            e1 = EntityNode(id="e1", user_name=self.user_name, name="Python", text="Python is a programming language.")
+            e1 = EntityNode(id="e1", user_id=self.user_id, name="Python", text="Python is a programming language.")
             session.add(e1)
             # Create an embedding for the entity
             emb1 = EmbeddingIndex(
-                user_name=self.user_name,
+                user_id=self.user_id,
                 collection="entity",
                 source_id="e1",
                 text_content="Python",
@@ -60,7 +61,7 @@ class TestContextRetrieval(unittest.TestCase):
 
         # 2. Call retrieve_context
         query_emb = [1.0] * 384
-        result = retrieve_context(query_emb, self.user_name, k=1, top_n=1)
+        result = retrieve_context(query_emb, self.user_id, k=1, top_n=1)
 
         # 3. Assertions
         self.assertIn("Relevant entities:", result)
@@ -69,18 +70,18 @@ class TestContextRetrieval(unittest.TestCase):
     def test_retrieve_context_with_edges(self):
         with get_session() as session:
             # Entities
-            e1 = EntityNode(id="e1", user_name=self.user_name, name="Alice", text="Alice lives in Paris.")
-            e2 = EntityNode(id="e2", user_name=self.user_name, name="Paris", text="Paris is the capital of France.")
+            e1 = EntityNode(id="e1", user_id=self.user_id, name="Alice", text="Alice lives in Paris.")
+            e2 = EntityNode(id="e2", user_id=self.user_id, name="Paris", text="Paris is the capital of France.")
             session.add_all([e1, e2])
 
             # Edge
-            edge = GraphEdge(id=1, user_name=self.user_name, source_id="e1", target_id="e2",
+            edge = GraphEdge(id=1, user_id=self.user_id, source_id="e1", target_id="e2",
                              source_name="Alice", target_name="Paris", relation="lives in")
             session.add(edge)
 
             # Embeddings
             emb_edge = EmbeddingIndex(
-                user_name=self.user_name,
+                user_id=self.user_id,
                 collection="edge",
                 source_id="1",
                 text_content="Alice lives in Paris",
@@ -90,7 +91,7 @@ class TestContextRetrieval(unittest.TestCase):
             session.commit()
 
         query_emb = [1.0] * 384
-        result = retrieve_context(query_emb, self.user_name, k=5, top_n=5)
+        result = retrieve_context(query_emb, self.user_id, k=5, top_n=5)
 
         self.assertIn("Relations:", result)
         self.assertIn("- Alice -- lives in --> Paris", result)

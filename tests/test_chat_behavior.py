@@ -53,7 +53,7 @@ class TestChatBehavior(unittest.TestCase):
             "profile",
             ["identity"],
             "I am a test user.",
-            "test_user",
+            1,
             get_embedding_model()
         )
 
@@ -72,7 +72,7 @@ class TestChatBehavior(unittest.TestCase):
 
         self.mock_llm.generate.side_effect = mock_generate
 
-        chat = RAGChat(user_name="test_user", llm=self.mock_llm)
+        chat = RAGChat(user_id=1, llm=self.mock_llm)
         chat._cross_encoder = self.mock_cross_encoder
 
         response_tokens = list(chat.generate("who am I?", stream=True))
@@ -105,7 +105,7 @@ class TestChatBehavior(unittest.TestCase):
 
         self.mock_llm.generate.side_effect = mock_generate
 
-        chat = RAGChat(user_name="test_user", llm=self.mock_llm)
+        chat = RAGChat(user_id=1, llm=self.mock_llm)
         chat._cross_encoder = self.mock_cross_encoder
 
         # Spy on the orchestrator
@@ -128,7 +128,7 @@ class TestChatBehavior(unittest.TestCase):
 
         self.mock_llm.generate.side_effect = mock_generate
 
-        assistant = Chat(user_name="api_user", llm=self.mock_llm)
+        assistant = Chat(user_id=1, llm=self.mock_llm)
         assistant._cross_encoder = self.mock_cross_encoder
 
         response_tokens = list(assistant.send_message("Hello!", stream=True))
@@ -149,7 +149,7 @@ class TestChatBehavior(unittest.TestCase):
             use_mlock=False   # Avoid mlock limits on Linux CI runners
         )
 
-        chat = RAGChat(user_name="e2e_user", llm=tiny_llm)
+        chat = RAGChat(user_id=1, llm=tiny_llm)
 
         generator = chat.generate("hi", stream=True)
         # Pull exactly one token to confirm the models loaded and context successfully initialized

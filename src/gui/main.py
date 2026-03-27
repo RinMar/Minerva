@@ -16,7 +16,8 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtCore import QObject, Slot, Signal, QUrl, QTimer
-from src.memory.db import get_session, EntityNode, GraphEdge
+from src.memory.db import get_session, EntityNode, GraphEdge, User, init_db
+from src.config import save_last_user
 
 
 class Bridge(QObject):
@@ -28,18 +29,110 @@ class Bridge(QObject):
     stream_start = Signal()
     stream_token = Signal(str)
     stream_state = Signal(str)
+    user_switch_requested = Signal()
+    profile_changed = Signal(int, str)
 
-    def __init__(self, page, user_name="user"):
+    def __init__(self, page, user_id, user_name):
         super().__init__()
         self.page = page
+        self.user_id = user_id
         self.user_name = user_name
-        self.assistant = Chat(user_name=user_name)
+        self.assistant = Chat(user_id=user_id)
 
         # Connect signal → slot for thread-safe UI updates
         self.response_ready.connect(self._push_assistant_message)
         self.stream_start.connect(self._push_stream_start)
         self.stream_token.connect(self._push_stream_token)
         self.stream_state.connect(self._push_stream_state)
+
+    @Slot()
+    def handle_user_click(self):
+        """Called from JS when the user button is clicked."""
+        print("[GUI] User button clicked")
+        # We now handle the dropdown in JS, but we might still want to emit
+        # or just let JS handle the display and then call back to other slots.
+        self.user_switch_requested.emit()
+
+    @Slot(result=list)
+    def get_user_list(self):
+        """Return a list of all existing user names."""
+        with get_session() as session:
+            users = session.query(User).all()
+            return [u.name for u in users]
+
+    @Slot(str)
+    def switch_profile(self, user_name):
+        """Switch to an existing profile by name."""
+        with get_session() as session:
+            u = session.query(User).filter_by(name=user_name).first()
+            if u:
+                self.user_id = u.id
+                self.user_name = u.name
+                save_last_user(self.user_id, self.user_name)
+                self.update_user(self.user_id, self.user_name)
+                # Notify the window (which owns the bridge) to refresh graph/title
+                # Wait, the bridge can't easily notify the window unless we pass the window or use a signal.
+                # Actually, MainWindow is connected to user_switch_requested, but that was for QInputDialog.
+                # Let's add a signal for the window to react to.
+                self.profile_changed.emit(self.user_id, self.user_name)
+
+    @Slot(str)
+    def create_profile(self, user_name):
+        """Create a new profile and switch to it."""
+        if not user_name.strip():
+            return
+
+        with get_session() as session:
+            existing = session.query(User).filter_by(name=user_name).first()
+            if not existing:
+                new_u = User(name=user_name)
+                session.add(new_u)
+                session.commit()
+                self.user_id = new_u.id
+            else:
+                self.user_id = existing.id
+            self.user_name = user_name
+
+        save_last_user(self.user_id, self.user_name)
+        self.update_user(self.user_id, self.user_name)
+        self.profile_changed.emit(self.user_id, self.user_name)
+
+    @Slot(str, str)
+    def rename_user(self, old_name, new_name):
+        """Rename a user profile in the database."""
+        if not new_name.strip() or old_name == new_name:
+            return
+
+        with get_session() as session:
+            user = session.query(User).filter_by(name=old_name).first()
+            if user:
+                user.name = new_name
+                session.commit()
+                print(f"[GUI] Renamed user '{old_name}' to '{new_name}'")
+
+                # If the renamed user is the active one, update state
+                if self.user_name == old_name:
+                    self.user_name = new_name
+                    save_last_user(self.user_id, self.user_name)
+                    self.profile_changed.emit(self.user_id, self.user_name)
+
+    @Slot()
+    def handle_settings_click(self):
+        """Called from JS when the settings button is clicked."""
+        print("[GUI] Settings button clicked")
+        # Placeholder for now
+        self.page.runJavaScript("alert('Settings functionality coming soon!')")
+
+    def update_user(self, new_user_id, new_user_name):
+        """Update the active user and re-initialize the assistant."""
+        print(f"[GUI] Switching bridge to user: '{new_user_name}' (ID: {new_user_id})")
+        self.user_id = new_user_id
+        self.user_name = new_user_name
+
+        # Reuse existing LLM instance to prevent reloading large weights
+        existing_llm = getattr(self.assistant, "llm", None)
+        self.assistant = Chat(user_id=new_user_id, llm=existing_llm)
+        self.page.runJavaScript("clearChat(); clearGraph();")
 
     @Slot(str)
     def send_message(self, message):
@@ -208,18 +301,23 @@ class Bridge(QObject):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, user_name="user"):
+    def __init__(self, user_id=1, user_name="user"):
         super().__init__()
+        self.user_id = user_id
         self.user_name = user_name
-        self.setWindowTitle("Minerva — Knowledge Graph")
+        self.setWindowTitle(f"Minerva — Knowledge Graph ({self.user_name})")
 
         self.web = QWebEngineView()
 
         # Setup QWebChannel BEFORE loading the page so JS can find qt.webChannelTransport
         self.channel = QWebChannel()
-        self.bridge = Bridge(self.web.page(), user_name=self.user_name)
+        self.bridge = Bridge(self.web.page(), user_id=self.user_id, user_name=self.user_name)
         self.channel.registerObject("pyBridge", self.bridge)
         self.web.page().setWebChannel(self.channel)
+
+        # Connect user switch signals
+        self.bridge.user_switch_requested.connect(self.on_user_switch_requested)
+        self.bridge.profile_changed.connect(self.on_profile_changed)
 
         # Load HTML using absolute path
         html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "graph.html"))
@@ -236,6 +334,20 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
+
+    @Slot()
+    def on_user_switch_requested(self):
+        """Deprecated: Handled in HTML/JS."""
+        pass
+
+    @Slot(int, str)
+    def on_profile_changed(self, user_id, user_name):
+        """Update window title and internal state when profile changes in frontend."""
+        self.user_id = user_id
+        self.user_name = user_name
+        self.setWindowTitle(f"Minerva — Knowledge Graph ({self.user_name})")
+        print(f"[GUI] Switched to profile: {self.user_name}")
+        self.load_graph_data()
 
     def on_load_finished(self, ok):
         if not ok:
@@ -254,11 +366,11 @@ class MainWindow(QMainWindow):
 
     def load_graph_data(self):
 
-        print(f"\n[GUI] Loading graph data for user: '{self.user_name}'")
+        print(f"\n[GUI] Loading graph data for user: '{self.user_name}' (ID: {self.user_id})")
 
         with get_session() as session:
-            nodes = session.query(EntityNode).filter_by(user_name=self.user_name).all()
-            edges = session.query(GraphEdge).filter_by(user_name=self.user_name).all()
+            nodes = session.query(EntityNode).filter_by(user_id=self.user_id).all()
+            edges = session.query(GraphEdge).filter_by(user_id=self.user_id).all()
 
             node_data = []
             edge_data = []
@@ -282,9 +394,21 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == "__main__":
+    init_db()
     app = QApplication(sys.argv)
 
-    window = MainWindow(user_name="user")
+    # Resolve initial user
+    with get_session() as session:
+        u = session.query(User).first()
+        if not u:
+            u = User(name="user")
+            session.add(u)
+            session.commit()
+            start_id, start_name = u.id, u.name
+        else:
+            start_id, start_name = u.id, u.name
+
+    window = MainWindow(user_id=start_id, user_name=start_name)
     window.resize(1200, 800)
     window.show()
 
