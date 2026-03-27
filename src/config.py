@@ -26,6 +26,11 @@ n_batch = 512
 use_mmap = true
 use_mlock = true
 verbose = false
+
+[models]
+embedding_model_id = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+reranker_model_id = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+triplet_model_id = "Babelscape/rebel-large"
 """
 
 
@@ -49,6 +54,11 @@ def load_config():
             "use_mlock": True,
             "verbose": False,
             "device": "cpu"
+        },
+        "models": {
+            "embedding_model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+            "reranker_model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+            "triplet_model_id": "Babelscape/rebel-large"
         }
     }
 
@@ -63,6 +73,11 @@ def load_config():
 
             # Base LLM settings
             llm_config = raw_config.get("llm", {})
+
+            # Merge models settings
+            models_config = default_config["models"].copy()
+            models_config.update(raw_config.get("models", {}))
+            raw_config["models"] = models_config
 
             # Merge preset
             preset_key = f"{mode}_performance"
