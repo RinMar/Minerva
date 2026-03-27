@@ -4,7 +4,7 @@ Used to provide the terminal-based REPL for interacting with the assistant,
 and to expose the `Chat` wrapper class for API usage.
 """
 from src.models.rag_chat import RAGChat
-from src.memory.db import init_db
+from src.memory.db import init_db, get_session, User
 
 
 class Chat(RAGChat):
@@ -19,7 +19,19 @@ class Chat(RAGChat):
 
 def main():
     init_db()
-    chat = RAGChat()
+
+    # Ensure default user exists for CLI
+    with get_session() as session:
+        user = session.query(User).filter_by(name="user").first()
+        if not user:
+            user = User(name="user")
+            session.add(user)
+            session.commit()
+            user_id = user.id
+        else:
+            user_id = user.id
+
+    chat = RAGChat(user_id=user_id)
 
     initial_assistant_response = (
         "Hello, I'm Minerva, your assistant in research, "

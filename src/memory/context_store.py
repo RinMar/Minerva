@@ -18,11 +18,11 @@ from src.memory.db import get_session
 from src.memory.db import EntityNode, EmbeddingIndex, GraphEdge
 
 
-def _find_closest_entity(session, text: str, emb_model, user_name: str, threshold: float = 0.85) -> str:
+def _find_closest_entity(session, text: str, emb_model, user_id: int, threshold: float = 0.85) -> str:
     """Find the most semantically similar EntityNode in the DB for a given text."""
     query_emb = emb_model.encode(text).tolist()
     all_entities = session.query(EmbeddingIndex.source_id, EmbeddingIndex.embedding_json).filter_by(
-        user_name=user_name, collection="entity"
+        user_id=user_id, collection="entity"
     ).all()
 
     best_id = None
@@ -39,7 +39,7 @@ def _find_closest_entity(session, text: str, emb_model, user_name: str, threshol
     return None
 
 
-def delete_fact(fact_text: str, emb_model, user_name: str):
+def delete_fact(fact_text: str, emb_model, user_id: int):
     """
     Delete a fact from the database entirely.
     Removes the most similar edge and removes the exact or highly similar text from EntityNodes.
@@ -50,7 +50,7 @@ def delete_fact(fact_text: str, emb_model, user_name: str):
 
         # 1. Find and delete the most similar edge (threshold 0.85)
         all_edges = session.query(EmbeddingIndex.source_id, EmbeddingIndex.embedding_json).filter_by(
-            user_name=user_name, collection="edge"
+            user_id=user_id, collection="edge"
         ).all()
 
         edges_to_delete = []
@@ -66,7 +66,7 @@ def delete_fact(fact_text: str, emb_model, user_name: str):
             deleted_something = True
 
         # 2. Remove fact text from any EntityNode that has it
-        all_entities = session.query(EntityNode).filter_by(user_name=user_name).all()
+        all_entities = session.query(EntityNode).filter_by(user_id=user_id).all()
 
         for e in all_entities:
             lines = e.text.split('\n')
@@ -169,13 +169,13 @@ def _format_context_results(candidates, edges, name_map) -> str:
     return "\n".join(lines)
 
 
-def retrieve_context(query_emb, user_name: str, cross_encoder=None,
+def retrieve_context(query_emb, user_id: int, cross_encoder=None,
                      query_text: str = "", k: int = 10, top_n: int = 5,
                      ) -> str:
     with get_session() as session:
         # Load all embeddings (entities and edges) for the user
         all_embs = session.query(EmbeddingIndex).filter_by(
-            user_name=user_name
+            user_id=user_id
         ).all()
 
         if not all_embs:
@@ -193,7 +193,7 @@ def retrieve_context(query_emb, user_name: str, cross_encoder=None,
 
         # Step 3: Fact-to-Fact Graph expansion
         expanded_ids = graph_manager.expand_nodes(
-            seed_entity_ids, user_name, depth=1, max_nodes=20
+            seed_entity_ids, user_id, depth=1, max_nodes=20
         )
 
         final_ids = list(set(seed_entity_ids).union(expanded_ids))
@@ -202,7 +202,7 @@ def retrieve_context(query_emb, user_name: str, cross_encoder=None,
         entity_rows = session.query(
             EntityNode.id, EntityNode.name, EntityNode.text
         ).filter(
-            EntityNode.user_name == user_name,
+            EntityNode.user_id == user_id,
             EntityNode.id.in_(final_ids)
         ).all()
 
@@ -221,7 +221,7 @@ def retrieve_context(query_emb, user_name: str, cross_encoder=None,
 
         # Step 4b: Load graph edges between all expanded entities
         edges = session.query(GraphEdge).filter(
-            GraphEdge.user_name == user_name,
+            GraphEdge.user_id == user_id,
             GraphEdge.source_id.in_(final_ids),
             GraphEdge.target_id.in_(final_ids)
         ).all()

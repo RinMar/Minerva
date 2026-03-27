@@ -81,6 +81,77 @@
             transform: translateY(0);
         }
 
+        /* ── Profile Dropdown ── */
+        .dropdown-container {
+            position: relative;
+        }
+
+        #profile-dropdown {
+            position: absolute;
+            top: 36px;
+            right: 0;
+            width: 220px;
+            background: #1e1e2a;
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+            overflow: hidden;
+        }
+
+        .dropdown-item {
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #d0d0da;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(167, 139, 250, 0.1);
+            color: #a78bfa;
+        }
+
+        .dropdown-item.active {
+            color: #a78bfa;
+            font-weight: 600;
+            background: rgba(167, 139, 250, 0.05);
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.06);
+            margin: 4px 0;
+        }
+
+        .add-profile-input-container {
+            padding: 10px 14px;
+            display: none;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .add-profile-input-container input {
+            width: 100%;
+            background: #0f0f13;
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 12px;
+            color: #e0e0e6;
+            outline: none;
+        }
+
+        .add-profile-input-container input:focus {
+            border-color: #a78bfa;
+        }
+
         #chat-messages {
             flex: 1;
             overflow-y: auto;
@@ -247,7 +318,21 @@
         <div id="chat-header">
             <span>💬 Minerva Chat</span>
             <div class="header-actions">
-                <button id="user-btn" onclick="pyBridge.handle_user_click()" title="Switch User">👤</button>
+                <div class="dropdown-container">
+                    <button id="user-btn" onclick="toggleProfileDropdown()" title="Switch User">👤</button>
+                    <div id="profile-dropdown">
+                        <div id="user-list">
+                            <!-- Populated via JS -->
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-item" onclick="showAddProfileInput(event)" id="add-profile-item">
+                            <span>➕</span> Add New Profile...
+                        </div>
+                        <div class="add-profile-input-container" id="add-profile-input-area">
+                            <input type="text" id="new-profile-name" placeholder="Enter name..." onkeydown="handleNewProfileKeyDown(event)">
+                        </div>
+                    </div>
+                </div>
                 <button id="settings-btn" onclick="pyBridge.handle_settings_click()" title="Settings">⚙️</button>
             </div>
         </div>
@@ -502,6 +587,62 @@
                 window.pyBridge = channel.objects.pyBridge;
             });
         }
+
+        // ── Profile Dropdown Logic ──
+        function toggleProfileDropdown() {
+            const dropdown = document.getElementById('profile-dropdown');
+            const isVisible = dropdown.style.display === 'flex';
+            
+            if (!isVisible) {
+                // Populate users
+                pyBridge.get_user_list(function(users) {
+                    const list = document.getElementById('user-list');
+                    list.innerHTML = '';
+                    users.forEach(u => {
+                        const item = document.createElement('div');
+                        item.className = 'dropdown-item';
+                        item.innerHTML = '👤 ' + u;
+                        item.onclick = function() {
+                            pyBridge.switch_profile(u);
+                            toggleProfileDropdown();
+                        };
+                        list.appendChild(item);
+                    });
+                    dropdown.style.display = 'flex';
+                });
+            } else {
+                dropdown.style.display = 'none';
+                document.getElementById('add-profile-input-area').style.display = 'none';
+            }
+        }
+
+        function showAddProfileInput(event) {
+            event.stopPropagation();
+            document.getElementById('add-profile-input-area').style.display = 'block';
+            document.getElementById('new-profile-name').focus();
+        }
+
+        function handleNewProfileKeyDown(event) {
+            if (event.key === 'Enter') {
+                const name = event.target.value.trim();
+                if (name) {
+                    pyBridge.create_profile(name);
+                    toggleProfileDropdown();
+                }
+            } else if (event.key === 'Escape') {
+                document.getElementById('add-profile-input-area').style.display = 'none';
+            }
+        }
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('profile-dropdown');
+            const userBtn = document.getElementById('user-btn');
+            if (dropdown.style.display === 'flex' && !dropdown.contains(e.target) && e.target !== userBtn) {
+                dropdown.style.display = 'none';
+                document.getElementById('add-profile-input-area').style.display = 'none';
+            }
+        });
 
         initNetwork();
     </script>
