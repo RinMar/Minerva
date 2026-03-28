@@ -98,16 +98,26 @@ def _resolve_gguf_path(repo_id: str, filename: str) -> str:
 class CustomLLM:
     def __init__(
         self,
-        repo_id=config["llm"]["repo_id"],
-        filename=config["llm"]["filename"],
-        n_ctx=config["llm"]["n_ctx"],
-        n_gpu_layers=config["llm"]["n_gpu_layers"],
-        n_batch=config["llm"]["n_batch"],
-        use_mmap=config["llm"]["use_mmap"],
-        use_mlock=config["llm"]["use_mlock"],
-        verbose=config["llm"]["verbose"],
+        repo_id=None,
+        filename=None,
+        n_ctx=None,
+        n_gpu_layers=None,
+        n_batch=None,
+        use_mmap=None,
+        use_mlock=None,
+        verbose=None,
     ):
         self._lock = threading.Lock()
+
+        # Fetch latest settings from config if not provided as overrides
+        repo_id = repo_id or config["llm"]["repo_id"]
+        filename = filename or config["llm"]["filename"]
+        n_ctx = n_ctx or config["llm"]["n_ctx"]
+        n_gpu_layers = n_gpu_layers if n_gpu_layers is not None else config["llm"]["n_gpu_layers"]
+        n_batch = n_batch or config["llm"]["n_batch"]
+        use_mmap = use_mmap if use_mmap is not None else config["llm"]["use_mmap"]
+        use_mlock = use_mlock if use_mlock is not None else config["llm"]["use_mlock"]
+        verbose = verbose if verbose is not None else config["llm"]["verbose"]
 
         model_path = _resolve_gguf_path(repo_id, filename)
 

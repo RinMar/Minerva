@@ -29,7 +29,9 @@ class TestGUIBridge(unittest.TestCase):
             self.mock_chat_instance = MagicMock()
             mock_chat_class.return_value = self.mock_chat_instance
 
-            self.bridge = Bridge(page=self.mock_page, user_name="test_gui_user")
+            self.bridge = Bridge(page=self.mock_page, user_id=1, user_name="test_gui_user")
+            # Set the mock assistant directly as initialization is now deferred to a background thread
+            self.bridge.assistant = self.mock_chat_instance
 
     def test_bridge_initialization(self):
         self.assertEqual(self.bridge.user_name, "test_gui_user")
@@ -132,3 +134,64 @@ class TestGUIBridge(unittest.TestCase):
 
         self.assertIn("action_start_retrieve", states_emitted)
         self.assertIn("action_end", states_emitted)
+
+    def test_get_performance_mode_returns_config_value(self):
+        """get_performance_mode should return the current config value."""
+        with patch.dict('src.config.config', {"performance_mode": "high"}, clear=False):
+            result = self.bridge.get_performance_mode()
+            self.assertEqual(result, "high")
+
+    @patch('src.gui.main.reset_models')
+    @patch('src.gui.main.save_performance_mode')
+    @patch('src.gui.main.update_config_mode')
+    def test_update_performance_mode_calls_pipeline(self, mock_update, mock_save, mock_reset):
+        """Switching performance mode should save, update config, and reset models."""
+        # Mock initialize_assistant to prevent background thread
+        self.bridge.initialize_assistant = MagicMock()
+
+        self.bridge.update_performance_mode("high")
+
+        mock_save.assert_called_once_with("high")
+        mock_update.assert_called_once_with("high")
+        mock_reset.assert_called_once()
+        self.bridge.initialize_assistant.assert_called_once_with(existing_llm=None)
+
+    def test_send_message_blocked_without_assistant(self):
+        """send_message should do nothing when assistant is None (models loading)."""
+        self.bridge.assistant = None
+        self.mock_page.scripts.clear()
+
+        self.bridge.send_message("Should be ignored")
+
+        # No thread should be spawned, no JS should be called
+        thread_related = [s for s in self.mock_page.scripts if "generate" in s.lower()]
+        self.assertEqual(len(thread_related), 0)
+
+    def test_bg_init_assistant_hides_loader_on_success(self):
+        """The loader should always be hidden after successful initialization."""
+        with patch('src.gui.main.Chat') as mock_chat:
+            mock_chat.return_value = MagicMock()
+
+            statuses = []
+            self.bridge.model_loading_status.connect(
+                lambda loading, msg: statuses.append((loading, msg))
+            )
+
+            self.bridge._bg_init_assistant()
+
+            # Should have emitted (True, "Loading...") then (False, "")
+            self.assertTrue(any(s[0] is True for s in statuses))
+            self.assertEqual(statuses[-1], (False, ""))
+
+    def test_bg_init_assistant_hides_loader_on_failure(self):
+        """The loader should be hidden even if Chat() raises an exception."""
+        with patch('src.gui.main.Chat', side_effect=RuntimeError("boom")):
+            statuses = []
+            self.bridge.model_loading_status.connect(
+                lambda loading, msg: statuses.append((loading, msg))
+            )
+
+            self.bridge._bg_init_assistant()
+
+            # Should still end with (False, "") thanks to the finally block
+            self.assertEqual(statuses[-1], (False, ""))

@@ -26,11 +26,18 @@ def get_session():
         session.close()
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+
+
 class EntityNode(Base):
     __tablename__ = "entities"
 
     id = Column(String(64), primary_key=True, index=True)
-    user_name = Column(String, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name = Column(String, index=True)
     topic = Column(String, index=True)
     text = Column(String, nullable=False)
@@ -41,7 +48,7 @@ class GraphEdge(Base):
     __tablename__ = "edges"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_name = Column(String, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     source_id = Column(String(64), ForeignKey("entities.id", ondelete="CASCADE"))
     target_id = Column(String(64), ForeignKey("entities.id", ondelete="CASCADE"))
     source_name = Column(String, index=True)
@@ -53,7 +60,7 @@ class EmbeddingIndex(Base):
     __tablename__ = "embeddings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_name = Column(String, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     collection = Column(String, index=True)  # "entity" or "edge"
     source_id = Column(String, index=True)   # ID of EntityNode or GraphEdge
     text_content = Column(Text, nullable=False)
@@ -61,5 +68,18 @@ class EmbeddingIndex(Base):
 
 
 def init_db():
-    """Import all models and create their tables."""
-    Base.metadata.create_all(_engine)
+    """Import all models and run Alembic migrations to the latest version."""
+    from alembic.config import Config
+    from alembic import command
+    import os
+
+    # Dynamically resolve path to alembic.ini relative to this file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    alembic_ini_path = os.path.join(current_dir, "alembic.ini")
+
+    alembic_cfg = Config(alembic_ini_path)
+    # Ensure script_location is also absolute to be safe
+    alembic_cfg.set_main_option("script_location", os.path.join(current_dir, "alembic"))
+
+    # Run the upgrade to 'head'
+    command.upgrade(alembic_cfg, "head")

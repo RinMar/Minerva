@@ -10,10 +10,10 @@ from src.memory.db import get_session
 from src.utils import fact_id
 
 
-def _upsert_entity(session, name: str, topic: str, text: str, tags: list, user_name: str, emb_model):
+def _upsert_entity(session, name: str, topic: str, text: str, tags: list, user_id: int, emb_model):
     """Get or create entity node, update summary, and maintain embedding."""
-    eid = fact_id(name.lower())
-    entity = session.query(EntityNode).filter_by(id=eid, user_name=user_name).first()
+    eid = fact_id(name.lower(), user_id)
+    entity = session.query(EntityNode).filter_by(id=eid, user_id=user_id).first()
 
     if entity:
         # Append text if it's new information
@@ -23,7 +23,7 @@ def _upsert_entity(session, name: str, topic: str, text: str, tags: list, user_n
             # Update embedding since text changed
             emb = emb_model.encode(entity.text).tolist()
             emb_record = session.query(EmbeddingIndex).filter_by(
-                user_name=user_name, collection="entity", source_id=eid).first()
+                user_id=user_id, collection="entity", source_id=eid).first()
             if emb_record:
                 emb_record.text_content = entity.text
                 emb_record.embedding_json = json.dumps(emb)
@@ -31,7 +31,7 @@ def _upsert_entity(session, name: str, topic: str, text: str, tags: list, user_n
         # Create new entity
         entity = EntityNode(
             id=eid,
-            user_name=user_name,
+            user_id=user_id,
             name=name,
             topic=topic,
             text=text,
@@ -42,7 +42,7 @@ def _upsert_entity(session, name: str, topic: str, text: str, tags: list, user_n
         # Add embedding
         emb = emb_model.encode(entity.text).tolist()
         new_emb = EmbeddingIndex(
-            user_name=user_name,
+            user_id=user_id,
             collection="entity",
             source_id=eid,
             text_content=entity.text,
@@ -54,7 +54,7 @@ def _upsert_entity(session, name: str, topic: str, text: str, tags: list, user_n
     return eid
 
 
-def add_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_name: str, emb_model):
+def add_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_id: int, emb_model):
     """
     Ingest extracted triplets into Graph EntityNodes and GraphEdges.
     Handles upserting entities and creating edges + edge embeddings.
@@ -62,7 +62,7 @@ def add_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_na
     if not triplets:
         # If no triplets extracted, we create a single standalone node based on the topic
         with get_session() as session:
-            _upsert_entity(session, topic, topic, fact_text, tags, user_name, emb_model)
+            _upsert_entity(session, topic, topic, fact_text, tags, user_id, emb_model)
             session.commit()
         return 0
 
@@ -77,12 +77,12 @@ def add_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_na
                 continue
 
             # Upsert Nodes
-            head_id = _upsert_entity(session, head, topic, fact_text, tags, user_name, emb_model)
-            tail_id = _upsert_entity(session, tail, topic, fact_text, tags, user_name, emb_model)
+            head_id = _upsert_entity(session, head, topic, fact_text, tags, user_id, emb_model)
+            tail_id = _upsert_entity(session, tail, topic, fact_text, tags, user_id, emb_model)
 
             # Deduplicate edge
             existing_edge = session.query(GraphEdge).filter_by(
-                user_name=user_name,
+                user_id=user_id,
                 source_id=head_id,
                 target_id=tail_id,
                 relation=relation
@@ -90,7 +90,7 @@ def add_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_na
 
             if not existing_edge:
                 edge = GraphEdge(
-                    user_name=user_name,
+                    user_id=user_id,
                     source_id=head_id,
                     target_id=tail_id,
                     source_name=head,
@@ -104,7 +104,7 @@ def add_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_na
                 triplet_text = f"{head} {relation} {tail}"
                 emb = emb_model.encode(triplet_text).tolist()
                 new_emb = EmbeddingIndex(
-                    user_name=user_name,
+                    user_id=user_id,
                     collection="edge",
                     source_id=str(edge.id),
                     text_content=triplet_text,
@@ -117,7 +117,7 @@ def add_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_na
     return added_edges
 
 
-def expand_nodes(seed_ids: list, user_name: str, depth: int = 1, max_nodes: int = 20) -> list:
+def expand_nodes(seed_ids: list, user_id: int, depth: int = 1, max_nodes: int = 20) -> list:
     """
     BFS expansion from seed entity ids through the GraphEdge graph.
     Returns a list of connected entity ids (including seeds).
@@ -139,13 +139,13 @@ def expand_nodes(seed_ids: list, user_name: str, depth: int = 1, max_nodes: int 
 
             # Outgoing edges
             outgoing = session.query(GraphEdge.target_id).filter_by(
-                user_name=user_name,
+                user_id=user_id,
                 source_id=current_id
             ).all()
 
             # Incoming edges (reverse traversal)
             incoming = session.query(GraphEdge.source_id).filter_by(
-                user_name=user_name,
+                user_id=user_id,
                 target_id=current_id
             ).all()
 

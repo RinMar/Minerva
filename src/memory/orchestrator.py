@@ -11,10 +11,10 @@ from src.memory.context_store import delete_fact
 
 
 class MemoryOrchestrator:
-    def __init__(self, llm, emb_model, user_name: str, cross_encoder=None):
+    def __init__(self, llm, emb_model, user_id: int, cross_encoder=None):
         self.llm = llm
         self.emb_model = emb_model
-        self.user_name = user_name
+        self.user_id = user_id
         self.cross_encoder = cross_encoder
         self._pending_facts = []
 
@@ -124,7 +124,7 @@ class MemoryOrchestrator:
             topic=topic,
             tags=tags,
             fact_text=text,
-            user_name=self.user_name,
+            user_id=self.user_id,
             emb_model=self.emb_model
         )
         print(f"[Orchestrator] Graph updated via Triplets. Added {added} edges.")
@@ -134,10 +134,10 @@ class MemoryOrchestrator:
         new_fact = fact.get("new_fact", "")
         tags = fact.get("tags", ["tool_stored"])
         if old_fact and new_fact:
-            delete_fact(old_fact, self.emb_model, self.user_name)
+            delete_fact(old_fact, self.emb_model, self.user_id)
             self._process_store({"fact": new_fact, "tags": tags}, topic)
 
     def _process_delete(self, fact: dict):
         text = fact.get("text", "")
         if text:
-            delete_fact(text, self.emb_model, self.user_name)
+            delete_fact(text, self.emb_model, self.user_id)
