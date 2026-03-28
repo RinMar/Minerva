@@ -443,7 +443,7 @@ class MainWindow(QMainWindow):
 
     def load_graph_data(self):
 
-        print(f"\n[GUI] Loading graph data for user: '{self.user_name}' (ID: {self.user_id})")
+        # print(f"\n[GUI] Loading graph data for user: '{self.user_name}' (ID: {self.user_id})")
 
         with get_session() as session:
             nodes = session.query(EntityNode).filter_by(user_id=self.user_id).all()

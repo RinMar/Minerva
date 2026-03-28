@@ -94,15 +94,9 @@ class ChatLlm:
                     if "</tool>" in tool_content:
                         pre, _, _ = tool_content.partition("</tool>")
 
-                        try:
-                            parsed = json_repair.loads(pre)
-                            tool_name = parsed.get("name", "unknown")
-                        except Exception:
-                            tool_name = "unknown"
-
-                        yield f"<action:{tool_name}>"
+                        # We don't need to parse tool_name natively anymore since we emit a unified call tag
                         self._handle_parsed_tool(pre, full_response, current_messages)
-                        yield f"</action:{tool_name}>"
+                        yield "</action:call>"
                         break
                 else:
                     yield_str, buffer, in_tool = self._process_text_token(token, buffer)
@@ -110,6 +104,7 @@ class ChatLlm:
                         full_response += yield_str
                         yield yield_str
                     if in_tool:
+                        yield "<action:call>"
                         tool_content = buffer
                         buffer = ""
             else:
