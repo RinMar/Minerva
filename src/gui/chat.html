@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="css/chat.css">
+</head>
+<body>
+    <div id="chat-header">
+        <span>💬 Minerva Chat</span>
+        <div class="header-actions">
+            <div class="dropdown-container">
+                <button id="user-btn" onclick="toggleProfileDropdown()" title="Switch User">👤</button>
+                <div id="profile-dropdown">
+                    <div id="user-list">
+                        <!-- Populated via JS -->
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" onclick="showAddProfileInput(event)" id="add-profile-item">
+                        <span>➕</span> Add New Profile...
+                    </div>
+                    <div class="add-profile-input-container" id="add-profile-input-area">
+                        <input type="text" id="new-profile-name" placeholder="Enter name..." onkeydown="handleNewProfileKeyDown(event)">
+                    </div>
+                </div>
+            </div>
+            <button id="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
+        </div>
+    </div>
+    
+    <div id="chat-messages">
+        <div class="msg system">Connected to Minerva. Your knowledge graph is loading…</div>
+    </div>
+
+    <div id="chat-input-area">
+        <textarea id="chat-input" placeholder="Ask Minerva something…" rows="1"></textarea>
+        <button id="send-btn" class="disabled" title="Send">▶</button>
+    </div>
+
+    <!-- Model Loader Overlay -->
+    <div id="model-loader">
+        <div class="loader-content">
+            <div class="loader-text" id="loader-status">Loading AI Models</div>
+            <div class="loader-bar-bg">
+                <div class="loader-bar-fill"></div>
+            </div>
+            <div class="loader-subtext">This may take a moment on first launch...</div>
+        </div>
+    </div>
+
+    <script src="js/chat.js"></script>
+</body>
+</html>
