@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f0f13;
+    color: #e0e0e6;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+}
+
+/* ── Right Panel: Graph ── */
+#graph-panel {
+    flex: 1;
+    position: relative;
+    background: #0f0f13;
+}
+
+#mynetwork {
+    width: 100%;
+    height: 100vh;
+}
+
+#graph-stats {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    font-size: 11px;
+    color: #555;
+    background: rgba(15, 15, 19, 0.85);
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.04);
+    pointer-events: none;
+}

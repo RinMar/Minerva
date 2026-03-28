@@ -193,7 +193,7 @@ class Bridge(QObject):
         reset_models()
 
         # 3. Re-initialize assistant (with loader visible)
-        self.page.runJavaScript("clearChat(); clearGraph();")
+        self.page.runJavaScript("clearChat();")
 
         # Important: pass None as existing_llm to force full reload of the main LLM too
         # so it picks up the new n_ctx and n_gpu_layers.
@@ -394,7 +394,7 @@ class MainWindow(QMainWindow):
         self.bridge.profile_changed.connect(self.on_profile_changed)
 
         # Load HTML using absolute path
-        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "graph.html"))
+        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "index.html"))
         print(f"[GUI] Loading HTML from: {html_path}")
         self.web.load(QUrl.fromLocalFile(html_path))
 
