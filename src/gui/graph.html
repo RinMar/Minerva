@@ -779,7 +779,7 @@
             thinkingIcon = document.createElement('div');
             thinkingIcon.className = 'thinking-icon';
             thinkingIcon.innerHTML = '🤔 <i>Thinking...</i>';
-            thinkingIcon.style.display = 'none';
+            thinkingIcon.style.display = 'inline-flex';
             thinkingIcon.style.color = '#a78bfa';
             thinkingIcon.style.fontSize = '12px';
             thinkingIcon.style.marginBottom = '6px';
@@ -807,15 +807,8 @@
                     thinkingIcon.style.display = 'inline-flex';
                 }
             } else if (state.startsWith('action_start_')) {
-                var tool = state.replace('action_start_', '');
                 if (thinkingIcon) {
-                    if (tool === 'retrieve') {
-                        thinkingIcon.innerHTML = '🔍 <i>Retrieving knowledge...</i>';
-                    } else if (tool === 'manage_memory') {
-                        thinkingIcon.innerHTML = '💾 <i>Updating memory...</i>';
-                    } else {
-                        thinkingIcon.innerHTML = '⚙️ <i>Executing tool (' + tool + ')...</i>';
-                    }
+                    thinkingIcon.innerHTML = '⚙️ <i>Calling tools...</i>';
                     thinkingIcon.style.display = 'inline-flex';
                 }
             } else if (state === 'think_end' || state === 'action_end' || state === 'done') {
