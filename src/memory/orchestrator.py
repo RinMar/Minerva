@@ -130,14 +130,20 @@ class MemoryOrchestrator:
         print(f"[Orchestrator] Graph updated via Triplets. Added {added} edges.")
 
     def _process_update(self, fact: dict, topic: str):
-        old_fact = fact.get("old_fact", "")
+        # Handle 'id' or 'old_fact' aliases
+        old_fact = fact.get("old_fact", fact.get("id", fact.get("fact", "")))
         new_fact = fact.get("new_fact", "")
         tags = fact.get("tags", ["tool_stored"])
         if old_fact and new_fact:
             delete_fact(old_fact, self.emb_model, self.user_id)
             self._process_store({"fact": new_fact, "tags": tags}, topic)
+        else:
+            print(f"[Orchestrator] Skip update: missing old_fact ({old_fact}) or new_fact ({new_fact})")
 
     def _process_delete(self, fact: dict):
-        text = fact.get("text", "")
+        # Handle 'id', 'text', or 'fact' aliases
+        text = fact.get("text", fact.get("id", fact.get("fact", "")))
         if text:
             delete_fact(text, self.emb_model, self.user_id)
+        else:
+            print(f"[Orchestrator] Skip delete: no valid text or ID found in {fact}")
