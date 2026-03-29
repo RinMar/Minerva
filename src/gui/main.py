@@ -5,7 +5,6 @@ and a vis.js knowledge graph on the right.
 """
 import sys
 import os
-import json
 
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView

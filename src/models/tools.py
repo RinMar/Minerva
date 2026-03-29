@@ -6,6 +6,7 @@ for `retrieve` and `manage_memory` tools.
 import src.memory.store as memory_store
 import src.memory.retrieve as memory_retrieve
 
+
 def execute_retrieve(tool_args: dict, user_id: int, emb_model, cross_encoder) -> str:
     query = tool_args.get("query", "")
     if not query:

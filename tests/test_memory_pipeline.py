@@ -154,7 +154,7 @@ class TestMemoryPipeline(unittest.TestCase):
         """Test explicit update_entity renaming and text replacement."""
         triplets = [{"head": "OldName", "type": "rel1", "tail": "NodeB"}]
         memory_store.store_triplets(triplets, "test", ["test"], "OldName is related to NodeB",
-                                   self.user_id, self.mock_emb)
+                                    self.user_id, self.mock_emb)
         memory_store.update_entity("OldName", "NewName", None, self.mock_emb, self.user_id)
         with get_session() as session:
             ent = session.query(EntityNode).filter_by(name="NewName").first()
