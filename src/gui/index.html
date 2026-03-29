@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minerva — Knowledge Graph</title>
+
+    <!-- QWebChannel -->
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+
+    <link rel="stylesheet" href="css/index.css">
+</head>
+
+<body>
+    <!-- Panels -->
+    <iframe id="chat-frame" class="panel-iframe" src="chat.html"></iframe>
+    <iframe id="graph-frame" class="panel-iframe" src="graph.html"></iframe>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" onclick="closeSettingsIfOutside(event)">
+        <div class="modal-container" onclick="event.stopPropagation()">
+            <div class="modal-title">⚙️ System Settings</div>
+            
+            <div class="setting-group">
+                <div class="setting-label">Performance Mode</div>
+                <div class="performance-options">
+                    <div class="perf-opt" id="perf-low" onclick="selectPerf('low')">
+                        <div class="perf-opt-title">🚀 Low</div>
+                        <div class="perf-opt-desc">CPU Base (Aggressive Offloading)</div>
+                    </div>
+                    <div class="perf-opt" id="perf-high" onclick="selectPerf('high')">
+                        <div class="perf-opt-title">⚡ High</div>
+                        <div class="perf-opt-desc">Full GPU (Faster Inference)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="closeSettings()">Cancel</button>
+                <button class="modal-btn save" onclick="saveSettings()">Save & Restart</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/index.js"></script>
+</body>
+</html>
