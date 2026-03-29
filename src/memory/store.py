@@ -47,16 +47,17 @@ def _upsert_entity(session, name: str, topic: str, text: str, tags: list, user_i
 
 
 def add_entity(name: str, topic: str, text: str, tags: list, user_id: int, emb_model):
-    """Explicitly add or append text to an entity node."""
+    """Explicitly add or append text to an entity node. Returns True on success."""
     if not name:
-        return
+        return False
     with get_session() as session:
         _upsert_entity(session, name, topic, text, tags, user_id, emb_model)
         session.commit()
+    return True
 
 
 def store_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_id: int, emb_model):
-    """Ingest extracted triplets into Graph EntityNodes and GraphEdges."""
+    """Ingest extracted triplets into Graph EntityNodes and GraphEdges. Returns count of added edges."""
     if not triplets:
         with get_session() as session:
             _upsert_entity(session, topic, topic, fact_text, tags, user_id, emb_model)
@@ -109,15 +110,17 @@ def store_triplets(triplets: list, topic: str, tags: list, fact_text: str, user_
 
 
 def add_edge(source: str, target: str, relation: str, user_id: int, emb_model):
-    """Explicitly add an edge between two entities, creating them if necessary."""
+    """Explicitly add an edge between two entities. Returns count of added edges."""
     if not source or not target or not relation:
-        return
-    store_triplets([{"head": source, "type": relation, "tail": target}], "general", [], "", user_id, emb_model)
+        return 0
+    return store_triplets([{"head": source, "type": relation, "tail": target}], "general", [], "", user_id, emb_model)
 
 
 def delete_edge(source_name: str, target_name: str, relation: str, user_id: int):
+    """Delete edges matching the criteria. Returns count of deleted edges."""
     if not source_name or not target_name or not relation:
-        return
+        return 0
+    deleted_count = 0
     with get_session() as session:
         edges = session.query(GraphEdge).filter(
             GraphEdge.user_id == user_id, GraphEdge.relation == relation).all()
@@ -125,12 +128,16 @@ def delete_edge(source_name: str, target_name: str, relation: str, user_id: int)
             if edge.source_name.lower() == source_name.lower() and edge.target_name.lower() == target_name.lower():
                 session.delete(edge)
                 session.query(EmbeddingIndex).filter_by(source_id=str(edge.id), collection="edge").delete()
+                deleted_count += 1
         session.commit()
+    return deleted_count
 
 
 def update_edge(source_name: str, target_name: str, old_relation: str, new_relation: str, emb_model, user_id: int):
+    """Update edges matching the criteria. Returns count of updated edges."""
     if not source_name or not target_name or not old_relation or not new_relation:
-        return
+        return 0
+    updated_count = 0
     with get_session() as session:
         edges = session.query(GraphEdge).filter(
             GraphEdge.user_id == user_id, GraphEdge.relation == old_relation).all()
@@ -142,12 +149,16 @@ def update_edge(source_name: str, target_name: str, old_relation: str, new_relat
                 session.query(EmbeddingIndex).filter_by(source_id=str(edge.id), collection="edge").update({
                     "text_content": triplet_text, "embedding_json": json.dumps(emb)
                 })
+                updated_count += 1
         session.commit()
+    return updated_count
 
 
 def delete_entity(name: str, user_id: int):
+    """Delete entities and their associated edges. Returns count of deleted entities."""
     if not name:
-        return
+        return 0
+    deleted_count = 0
     with get_session() as session:
         entities = session.query(EntityNode).filter_by(user_id=user_id).all()
         for e in entities:
@@ -159,12 +170,16 @@ def delete_entity(name: str, user_id: int):
                 for edge in attached_edges:
                     session.delete(edge)
                     session.query(EmbeddingIndex).filter_by(source_id=str(edge.id), collection="edge").delete()
+                deleted_count += 1
         session.commit()
+    return deleted_count
 
 
 def update_entity(old_name: str, new_name: str, new_text: str, emb_model, user_id: int):
+    """Update entity properties. Returns count of updated entities."""
     if not old_name:
-        return
+        return 0
+    updated_count = 0
     with get_session() as session:
         entities = session.query(EntityNode).filter_by(user_id=user_id).all()
         for e in entities:
@@ -194,4 +209,6 @@ def update_entity(old_name: str, new_name: str, new_text: str, emb_model, user_i
                         session.query(EmbeddingIndex).filter_by(source_id=str(edge.id), collection="edge").update({
                             "text_content": triplet_text, "embedding_json": json.dumps(edge_emb)
                         })
+                updated_count += 1
         session.commit()
+    return updated_count
