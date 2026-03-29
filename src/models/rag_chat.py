@@ -99,13 +99,14 @@ class RAGChat(ChatLlm):
 
         for fact_obj in updates:
             topic = fact_obj.get("topic", "general")
-            old_fact = fact_obj.get("old_fact", "")
+            old_fact = fact_obj.get("id", fact_obj.get("old_fact", ""))
             new_fact = fact_obj.get("new_fact", "")
             if old_fact and new_fact:
                 self.orchestrator.trigger_update_fact(topic, old_fact=old_fact, new_fact=new_fact)
                 count += 1
 
-        for fact_str in deletes:
+        for fact_obj in deletes:
+            fact_str = fact_obj.get("id", fact_obj.get("fact", "")) if isinstance(fact_obj, dict) else fact_obj
             if fact_str:
                 self.orchestrator.trigger_delete_fact(fact_str)
                 count += 1
