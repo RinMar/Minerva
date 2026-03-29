@@ -52,8 +52,8 @@ def _ensure_config_exists():
 def load_config():
     default_config = {
         "llm": {
-            "repo_id": "Qwen/Qwen3-8B-GGUF",
-            "filename": "*Q4_K_M.gguf",
+            "repo_id": "unsloth/Qwen3.5-9B-GGUF",
+            "filename": "Qwen3.5-9B-Q4_K_M.gguf",
             "n_ctx": 32768,
             "n_gpu_layers": -1,
             "n_batch": 512,

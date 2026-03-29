@@ -42,21 +42,21 @@ Make sure you have the CUDA toolkit installed and configured for your system. Mu
 
 For Windows:
 ```powershell
-$env:CMAKE_ARGS="-DGGML_CUDA=on"; pip install --ignore-installed llama-cpp-python
+$env:CMAKE_ARGS="-DGGML_CUDA=on"; pip install --ignore-installed --no-cache-dir llama-cpp-python
 ```
 For Linux:
 ```bash
-CMAKE_ARGS="-DGGML_CUDA=on" pip install --ignore-installed llama-cpp-python
+CMAKE_ARGS="-DGGML_CUDA=on" pip install --ignore-installed --no-cache-dir llama-cpp-python
 ```
 With Vulkan:
 Make sure you have the Vulkan SDK installed and configured for your system. Multiple versions may lead to silent failures. Use `vulkaninfo` to check your current version. On Windows, you will also need the Windows SDK.
 For Windows:
 ```powershell
-$env:CMAKE_ARGS="-DGGML_VULKAN=on"; pip install --ignore-installed llama-cpp-python
+$env:CMAKE_ARGS="-DGGML_VULKAN=on"; pip install --ignore-installed --no-cache-dir llama-cpp-python
 ```
 For Linux:
 ```bash
-CMAKE_ARGS="-DGGML_VULKAN=on" pip install --ignore-installed llama-cpp-python
+CMAKE_ARGS="-DGGML_VULKAN=on" pip install --ignore-installed --no-cache-dir llama-cpp-python
 ```
 
 *Note: Installation of `llama-cpp-python` with CUDA bindings can take up to 30 minutes to compile, depending on your system configuration. Please be patient and trust the process!*

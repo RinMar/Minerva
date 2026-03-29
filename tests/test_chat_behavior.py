@@ -11,7 +11,7 @@ from src.models.rag_chat import RAGChat
 from src.memory.db import Base
 import src.memory.db as db_module
 from src.memory.db import EntityNode, GraphEdge
-from src.memory.graph_manager import add_triplets
+import src.memory.store as memory_store
 
 from src.chat import Chat
 from src.models.base_llm import CustomLLM
@@ -71,7 +71,7 @@ class TestChatBehavior(unittest.TestCase):
         """Test that RAGChat correctly parses a <tool> block from the LLM, executes it, and feeds it back."""
         # Add mock data to the DB so the retrieve tool actually finds something
         mock_emb = self.mock_emb_model.return_value
-        add_triplets(
+        memory_store.store_triplets(
             [{"head": "User", "type": "is", "tail": "test user"}],
             "profile",
             ["identity"],
@@ -131,15 +131,22 @@ class TestChatBehavior(unittest.TestCase):
         chat = RAGChat(user_id=1, llm=self.mock_llm)
         chat._cross_encoder = self.mock_cross_encoder
 
-        # Spy on the orchestrator
+        chat.orchestrator = MagicMock()
         chat.orchestrator.trigger_store = MagicMock()
 
-        list(chat.generate("I like tennis.", stream=True))
+        # Spy on memory_store
+        with patch('src.models.tools.memory_store.store_triplets') as mock_store:
+            list(chat.generate("I like tennis.", stream=True))
 
-        # Verify the orchestrator was triggered securely
-        chat.orchestrator.trigger_store.assert_called_once_with(
-            "hobbies", fact="user likes tennis", triplets=[{"head": "user", "type": "likes", "tail": "tennis"}]
-        )
+            # Verify the core was triggered
+            mock_store.assert_called_once_with(
+                [{"head": "user", "type": "likes", "tail": "tennis"}],
+                "hobbies",
+                ["sport"],
+                "user likes tennis",
+                1,
+                chat.emb_model
+            )
 
     def test_chat_api_send_message(self):
         """Test the public Chat API promise from the README."""

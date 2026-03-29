@@ -1,39 +1,31 @@
 """
 RAG-enabled chat interface.
-Used to extend the base conversational LLM to provide active memory capabilities,
-intercepting tool calls mid-stream to fetch and store knowledge natively.
+Provides multi-turn chat persistence, active memory capabilities, and native XML `<tool>` parsing
+to intercept and execute tools (like `retrieve` and `manage_memory`) mid-stream.
 """
+import json_repair
+
 from src.models.base_llm import CustomLLM
-from src.models.chat_llm import ChatLlm
 from src.models.embeddings import get_embedding_model, get_reranker_model
-from src.memory.context_store import retrieve_context
-from src.memory.orchestrator import MemoryOrchestrator
+from src.config import PROMPTS
+from src.models.tools import execute_retrieve, execute_manage_memory
 
 
-class RAGChat(ChatLlm):
+class RAGChat:
     """
-    RAGChat extends the base conversational LLM to provide active memory capabilities.
-    It hooks into the generation lifecycle, actively executing `retrieve` and `store`
-    tools formulated by the LLM. It intercepts tool calls mid-stream, silently fetches
-    knowledge, and returns the context so the model can seamlessly respond to the user.
+    RAGChat extends a base conversational LLM to provide active memory capabilities.
+    It hooks into the generation lifecycle, actively parsing `<tool>` tags, and
+    executing `retrieve` and memory tools natively in real-time.
     """
     def __init__(self, user_id, llm=None):
-        # Create one shared LLM if not provided
         if llm is None:
             llm = CustomLLM()
 
-        super().__init__(llm=llm)
+        self.llm = llm
+        self.history = []
         self.user_id = user_id
-
         self._emb_model = None
         self._cross_encoder = None
-
-        self.orchestrator = MemoryOrchestrator(
-            llm=self.llm,
-            emb_model=self.emb_model,
-            user_id=user_id,
-            cross_encoder=self.cross_encoder
-        )
 
     @property
     def emb_model(self):
@@ -47,71 +39,128 @@ class RAGChat(ChatLlm):
             self._cross_encoder = get_reranker_model()
         return self._cross_encoder
 
-    def _execute_tool(self, tool_name: str, tool_args: dict) -> str:
-        """
-        Executes an invoked tool natively.
+    # --- Generative and Tool Interception Core ---
 
-        Supported tools:
-        - 'retrieve': Runs a semantic search across the user's persistent knowledge base and graph.
-        - 'store': Flags a completely new fact to be parsed and written to disk asynchronously.
-        - 'update_fact': Flags an outdated fact to be replaced by a new fact asynchronously.
-        - 'delete_fact': Flags a fact for complete deletion asynchronously.
-
-        Returns:
-            str: The output of the tool, to be injected back into the LLM context as a system message.
-        """
-        if tool_name == "retrieve":
-            return self._handle_retrieve(tool_args)
-        elif tool_name == "manage_memory":
-            return self._handle_manage_memory(tool_args)
-        return f"Error: Tool '{tool_name}' not found."
-
-    def _handle_retrieve(self, tool_args: dict) -> str:
-        query = tool_args.get("query", "")
-        if not query:
-            return "Error: No query provided."
-
-        search_emb = self.emb_model.encode(query).tolist()
-        context = retrieve_context(
-            query_emb=search_emb,
-            user_id=self.user_id,
-            cross_encoder=self.cross_encoder,
-            query_text=query,
+    def _prepare_messages(self, user_prompt: str, system_prompt: str, user_name: str, user_information: dict = None):
+        # user_information is fetched via `retrieve` tool dynamically.
+        system_message = (
+            f"{system_prompt}\n"
+            f"You are talking to a user named {user_name}.\n"
         )
 
-        if context:
-            return f"Retrieved Context:\n{context}"
-        return "No relevant context found."
-
-    def _handle_manage_memory(self, tool_args: dict) -> str:
-        stores = tool_args.get("store", [])
-        updates = tool_args.get("update", [])
-        deletes = tool_args.get("delete", [])
-
-        count = 0
-        for fact_obj in stores:
-            topic = fact_obj.get("topic", "general")
-            fact = fact_obj.get("fact", "")
-            triplets = fact_obj.get("triplets", [])
-            if fact:
-                self.orchestrator.trigger_store(topic, fact=fact, triplets=triplets)
-                count += 1
-
-        for fact_obj in updates:
-            topic = fact_obj.get("topic", "general")
-            old_fact = fact_obj.get("old_fact", "")
-            new_fact = fact_obj.get("new_fact", "")
-            if old_fact and new_fact:
-                self.orchestrator.trigger_update_fact(topic, old_fact=old_fact, new_fact=new_fact)
-                count += 1
-
-        for fact_str in deletes:
-            if fact_str:
-                self.orchestrator.trigger_delete_fact(fact_str)
-                count += 1
-
-        return f"Successfully scheduled {count} memory operations (store/update/delete) for processing."
+        return (
+            [{"role": "system", "content": system_message}]
+            + self.history
+            + [{"role": "user", "content": user_prompt}]
+        )
 
     def _post_generate(self, user_prompt: str, assistant_response: str):
-        """Trigger background storage at the end of the turn."""
-        self.orchestrator.process_pending_stores()
+        """Hook for executing logic after a full response is available."""
+        pass
+
+    def _handle_parsed_tool(self, tool_json_str: str, full_response: str, current_messages: list):
+        """Executes a parsed tool and appends the result to history and messages."""
+        try:
+            parsed = json_repair.loads(tool_json_str)
+            tool_name = parsed.get("name")
+            tool_args = parsed.get("arguments", {})
+            print(f"\n[🔧 Executing Tool: {tool_name}] args: {tool_args}")
+            result_str = self._execute_tool(tool_name, tool_args)
+            print(f"[✅ Tool Result]: {result_str}\n")
+        except Exception as e:
+            result_str = f"Tool execution failed: {e}"
+            print(f"\n[❌ Tool Error]: {result_str}\n")
+
+        assistant_msg = full_response + "<tool>\n" + tool_json_str + "\n</tool>"
+        self.history.append({"role": "assistant", "content": assistant_msg})
+        current_messages.append({"role": "assistant", "content": assistant_msg})
+
+        tool_resp_msg = (
+            f"Tool execution result:\n<tool_response>\n{result_str}\n"
+            f"</tool_response>\nPlease continue your response."
+        )
+        self.history.append({"role": "user", "content": tool_resp_msg})
+        current_messages.append({"role": "user", "content": tool_resp_msg})
+
+    def _process_text_token(self, token: str, buffer: str):
+        """
+        Process a text token and detect <tool> tags.
+        Returns: (content_to_yield, new_buffer, in_tool)
+        """
+        buffer += token
+        if "<tool>" in buffer:
+            pre, _, post = buffer.partition("<tool>")
+            return pre, post, True
+
+        for s in ["<tool", "<too", "<to", "<t", "<"]:
+            if buffer.endswith(s):
+                return buffer[:-len(s)], s, False
+
+        return buffer, "", False
+
+    def _stream_generation(self, messages: list, user_prompt: str, max_tokens: int, **kwargs):
+        """Internal generator for producing a streaming response and intercepting tool calls."""
+        current_messages = list(messages)
+        while True:
+            full_response = ""
+            buffer = ""
+            in_tool = False
+            tool_content = ""
+
+            for token in self.llm.generate(
+                messages=current_messages, max_tokens=max_tokens, stream=True, **kwargs
+            ):
+                if in_tool:
+                    tool_content += token
+                    if "</tool>" in tool_content:
+                        pre, _, _ = tool_content.partition("</tool>")
+
+                        # We parse and execute the tool, then feed the response back implicitly
+                        self._handle_parsed_tool(pre, full_response, current_messages)
+                        yield "</action:call>"
+                        break
+                else:
+                    yield_str, buffer, in_tool = self._process_text_token(token, buffer)
+                    if yield_str:
+                        full_response += yield_str
+                        yield yield_str
+                    if in_tool:
+                        yield "<action:call>"
+                        tool_content = buffer
+                        buffer = ""
+            else:
+                # Full token stream exhausted without breaking -> finished response
+                self.history.append({"role": "assistant", "content": full_response})
+                self._post_generate(user_prompt, full_response)
+                return
+
+    def generate(self,
+                 user_prompt: str,
+                 system_prompt: str = PROMPTS["chat_prompt"],
+                 user_name: str = "User",
+                 user_information: dict = None,
+                 max_tokens: int = 8192,
+                 stream: bool = False,
+                 **kwargs):
+        """
+        Streams a response from the LLM. Intercepts `<tool>...</tool>` outputs natively,
+        executes the parsed tool via `_execute_tool`, injects the explicit result back
+        into the context, and continually streams until the model is satisfied.
+        """
+        messages = self._prepare_messages(user_prompt, system_prompt, user_name, user_information)
+        self.history.append({"role": "user", "content": user_prompt})
+
+        if stream:
+            return self._stream_generation(messages, user_prompt, max_tokens, **kwargs)
+        else:
+            return "Streaming is required for tool usage."
+
+    # --- Tool Execution Core ---
+
+    def _execute_tool(self, tool_name: str, tool_args: dict) -> str:
+        """Executes an invoked tool natively in real-time via external utility routines."""
+        if tool_name == "retrieve":
+            return execute_retrieve(tool_args, self.user_id, self.emb_model, self.cross_encoder)
+        elif tool_name == "manage_memory":
+            return execute_manage_memory(tool_args, self.user_id, self.emb_model)
+        return f"Error: Tool '{tool_name}' not found."
