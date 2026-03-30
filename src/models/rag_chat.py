@@ -58,18 +58,24 @@ class RAGChat:
         """Hook for executing logic after a full response is available."""
         pass
 
-    def _handle_parsed_tool(self, tool_json_str: str, full_response: str, current_messages: list):
+    def _handle_parsed_tool(
+        self, tool_json_str: str, full_response: str, current_messages: list, override_result: str = None
+    ):
         """Executes a parsed tool and appends the result to history and messages."""
-        try:
-            parsed = json_repair.loads(tool_json_str)
-            tool_name = parsed.get("name")
-            tool_args = parsed.get("arguments", {})
-            print(f"\n[🔧 Executing Tool: {tool_name}] args: {tool_args}")
-            result_str = self._execute_tool(tool_name, tool_args)
-            print(f"[✅ Tool Result]: {result_str}\n")
-        except Exception as e:
-            result_str = f"Tool execution failed: {e}"
-            print(f"\n[❌ Tool Error]: {result_str}\n")
+        if override_result:
+            result_str = override_result
+            print(f"\n[❌ Tool Aborted]: {result_str}\n")
+        else:
+            try:
+                parsed = json_repair.loads(tool_json_str)
+                tool_name = parsed.get("name")
+                tool_args = parsed.get("arguments", {})
+                print(f"\n[🔧 Executing Tool: {tool_name}] args: {tool_args}")
+                result_str = self._execute_tool(tool_name, tool_args)
+                print(f"[✅ Tool Result]: {result_str}\n")
+            except Exception as e:
+                result_str = f"Tool execution failed: {e}"
+                print(f"\n[❌ Tool Error]: {result_str}\n")
 
         assistant_msg = full_response + "<tool>\n" + tool_json_str + "\n</tool>"
         self.history.append({"role": "assistant", "content": assistant_msg})
@@ -101,6 +107,9 @@ class RAGChat:
     def _stream_generation(self, messages: list, user_prompt: str, max_tokens: int, **kwargs):
         """Internal generator for producing a streaming response and intercepting tool calls."""
         current_messages = list(messages)
+        tool_call_count = 0
+        MAX_TOOL_CALLS = 5
+
         while True:
             full_response = ""
             buffer = ""
@@ -115,8 +124,18 @@ class RAGChat:
                     if "</tool>" in tool_content:
                         pre, _, _ = tool_content.partition("</tool>")
 
-                        # We parse and execute the tool, then feed the response back implicitly
-                        self._handle_parsed_tool(pre, full_response, current_messages)
+                        tool_call_count += 1
+                        if tool_call_count > MAX_TOOL_CALLS:
+                            error_msg = (
+                                "Error: Maximum tool call limit reached (5). "
+                                "You MUST formulate a final response based on the current context."
+                            )
+                            self._handle_parsed_tool(
+                                pre, full_response, current_messages, override_result=error_msg
+                            )
+                        else:
+                            # We parse and execute the tool, then feed the response back implicitly
+                            self._handle_parsed_tool(pre, full_response, current_messages)
                         yield "</action:call>"
                         break
                 else:
