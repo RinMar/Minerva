@@ -141,4 +141,3 @@ def _process_update_entities(entities: list, user_id: int, emb_model) -> list:
             else:
                 reports.append(f"Warning: Could not find entity to update: {old_name}")
     return reports
-
