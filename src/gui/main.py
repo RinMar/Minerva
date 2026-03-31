@@ -4,9 +4,10 @@ Displays a split-panel window with a chat interface on the left
 and a vis.js knowledge graph on the right.
 """
 import sys
-import os
+from src.paths import get_resource_path
 
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtGui import QIcon
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtCore import Slot, QUrl, QTimer
@@ -21,6 +22,7 @@ class MainWindow(QMainWindow):
         self.user_id = user_id
         self.user_name = user_name
         self.setWindowTitle(f"Minerva — Knowledge Graph ({self.user_name})")
+        self.setWindowIcon(QIcon(get_resource_path("resources/logo.svg")))
 
         self.web = QWebEngineView()
 
@@ -35,7 +37,7 @@ class MainWindow(QMainWindow):
         self.bridge.profile_changed.connect(self.on_profile_changed)
 
         # Load HTML using absolute path
-        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "index.html"))
+        html_path = get_resource_path("resources/gui/index.html")
         print(f"[GUI] Loading HTML from: {html_path}")
         self.web.load(QUrl.fromLocalFile(html_path))
 

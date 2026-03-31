@@ -8,8 +8,14 @@ from src.memory.db import Base
 from src.paths import DB_PATH
 
 # Add project root to sys.path to allow imports from src
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+try:
+    # If running as PyInstaller _MEIPASS, that is our project root
+    project_root = sys._MEIPASS
+except AttributeError:
+    # Otherwise, resolve from the current env.py path
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 

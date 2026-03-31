@@ -61,11 +61,16 @@ CMAKE_ARGS="-DGGML_VULKAN=on" pip install --ignore-installed --no-cache-dir llam
 
 *Note: Installation of `llama-cpp-python` with CUDA bindings can take up to 30 minutes to compile, depending on your system configuration. Please be patient and trust the process!*
 
+## build
+```bash
+pyinstaller --noconfirm Minerva.spec
+```
+
 ## Usage
 
 Start your personal assistant by running:
 ```bash
-python -m src.chat
+python -m src.run
 ```
 
 ### Configuration

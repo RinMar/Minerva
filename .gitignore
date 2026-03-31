@@ -2,5 +2,7 @@
 __pycache__
 conversation.json
 .idea
+build
+dist
 
 local_store
