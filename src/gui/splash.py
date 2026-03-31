@@ -22,7 +22,7 @@ class SplashWidget(QWidget):
         self.renderer = QSvgRenderer(logo_path)
         native_size = self.renderer.defaultSize()
         aspect_ratio = native_size.height() / native_size.width()
-        
+
         # 2. Calculate logo dimensions
         self.logo_width = base_width
         self.logo_height = int(base_width * aspect_ratio)
@@ -78,7 +78,7 @@ class SplashWidget(QWidget):
             # Create a high-DPI aware premultiplied image buffer
             dpr = self.devicePixelRatio()
             img_size = (int(self.logo_width * dpr), int(self.logo_height * dpr))
-            
+
             # ARGB32_Premultiplied is crucial for correct alpha math on transparent bases
             self._cached_image = QImage(img_size[0], img_size[1], QImage.Format_ARGB32_Premultiplied)
             self._cached_image.fill(Qt.transparent)
@@ -92,7 +92,7 @@ class SplashWidget(QWidget):
         # Final draw to screen with the 10px margin
         painter = QPainter(self)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        
+
         target_rect = QRectF(self.margin, self.margin, self.logo_width, self.logo_height)
         painter.drawImage(target_rect, self._cached_image)
         painter.end()
