@@ -7,6 +7,7 @@ import sys
 from src.paths import get_resource_path
 
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtGui import QIcon
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtCore import Slot, QUrl, QTimer
@@ -21,6 +22,7 @@ class MainWindow(QMainWindow):
         self.user_id = user_id
         self.user_name = user_name
         self.setWindowTitle(f"Minerva — Knowledge Graph ({self.user_name})")
+        self.setWindowIcon(QIcon(get_resource_path("resources/logo.svg")))
 
         self.web = QWebEngineView()
 
