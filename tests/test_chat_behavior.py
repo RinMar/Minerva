@@ -4,13 +4,6 @@ Used to verify that the chat interface and model mock functionality work as expe
 """
 import unittest
 from unittest.mock import MagicMock, patch
-import sys
-
-# Mock heavy modules before they are imported by the code under test
-sys.modules["torch"] = MagicMock()
-sys.modules["sentence_transformers"] = MagicMock()
-sys.modules["llama_cpp"] = MagicMock()
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -173,7 +166,6 @@ class TestChatBehavior(unittest.TestCase):
 
         self.assertEqual(final_answer, "Hello Minerva!")
 
-    @unittest.skip("Heavy E2E test: requires real models and physical loading (slow)")
     def test_live_llm_minimal_e2e(self):
         """
         One step end-to-end test with real LLMs and real embedding models.
@@ -181,7 +173,7 @@ class TestChatBehavior(unittest.TestCase):
         """
         from src.models.embeddings import reset_models
 
-        # Temporarily stop the mock patchers so real models load from disk
+        # 1. Temporarily stop the mock patchers so real models load from disk
         self.patcher_emb.stop()
         self.patcher_rerank.stop()
         self.patcher_graph_emb.stop()

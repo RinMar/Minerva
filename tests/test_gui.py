@@ -4,7 +4,7 @@ import json
 
 from PySide6.QtCore import QCoreApplication
 
-from src.gui.bridge import Bridge
+from src.gui.bridge import Bridge  # noqa: E402
 
 # Ensure an application instance exists for QObject signals to work
 app = QCoreApplication.instance()

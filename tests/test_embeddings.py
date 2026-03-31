@@ -5,14 +5,8 @@ of get_embedding_model and get_reranker_model.
 """
 import unittest
 from unittest.mock import patch, MagicMock
-import sys
 
-# Mock heavy modules before they are imported by the code under test
-mock_st = MagicMock()
-sys.modules["sentence_transformers"] = mock_st
-sys.modules["torch"] = MagicMock()
-
-import src.models.embeddings as emb_module  # noqa: E402
+import src.models.embeddings as emb_module
 
 
 class TestGetDevice(unittest.TestCase):
@@ -45,8 +39,8 @@ class TestResetModels(unittest.TestCase):
         self.assertIsNone(emb_module._reranker_model)
 
 
-class TestLazyLoading(unittest.TestCase):
-    """Tests for get_embedding_model and get_reranker_model lazy loading."""
+class TestModelLifecycle(unittest.TestCase):
+    """Tests for get_embedding_model and get_reranker_model singleton behavior."""
 
     def setUp(self):
         # Always start with a clean state
@@ -57,7 +51,7 @@ class TestLazyLoading(unittest.TestCase):
         emb_module._embedding_model = None
         emb_module._reranker_model = None
 
-    @patch("sentence_transformers.SentenceTransformer")
+    @patch("src.models.embeddings.SentenceTransformer")
     def test_get_embedding_model_loads_once(self, mock_st):
         """get_embedding_model should only create the model once (lazy singleton)."""
         mock_st.return_value = MagicMock()
@@ -68,7 +62,7 @@ class TestLazyLoading(unittest.TestCase):
         mock_st.assert_called_once()
         self.assertIs(model1, model2)
 
-    @patch("sentence_transformers.SentenceTransformer")
+    @patch("src.models.embeddings.SentenceTransformer")
     def test_get_embedding_model_reloads_after_reset(self, mock_st):
         """After reset_models(), get_embedding_model should create a new instance."""
         mock_st.return_value = MagicMock()
@@ -82,7 +76,7 @@ class TestLazyLoading(unittest.TestCase):
         self.assertEqual(mock_st.call_count, 2)
         self.assertIsNot(model1, model2)
 
-    @patch("sentence_transformers.CrossEncoder")
+    @patch("src.models.embeddings.CrossEncoder")
     def test_get_reranker_model_loads_once(self, mock_ce):
         """get_reranker_model should only create the model once (lazy singleton)."""
         mock_ce.return_value = MagicMock()
@@ -93,7 +87,7 @@ class TestLazyLoading(unittest.TestCase):
         mock_ce.assert_called_once()
         self.assertIs(model1, model2)
 
-    @patch("sentence_transformers.CrossEncoder")
+    @patch("src.models.embeddings.CrossEncoder")
     def test_get_reranker_model_reloads_after_reset(self, mock_ce):
         """After reset_models(), get_reranker_model should create a new instance."""
         mock_ce.return_value = MagicMock()
