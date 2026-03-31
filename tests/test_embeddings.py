@@ -39,8 +39,8 @@ class TestResetModels(unittest.TestCase):
         self.assertIsNone(emb_module._reranker_model)
 
 
-class TestLazyLoading(unittest.TestCase):
-    """Tests for get_embedding_model and get_reranker_model lazy loading."""
+class TestModelLifecycle(unittest.TestCase):
+    """Tests for get_embedding_model and get_reranker_model singleton behavior."""
 
     def setUp(self):
         # Always start with a clean state

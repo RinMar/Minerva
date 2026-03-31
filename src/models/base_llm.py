@@ -5,7 +5,6 @@ text generation and streaming capabilities.
 """
 import threading
 import re
-
 from llama_cpp import Llama
 
 from src.config import config
@@ -37,7 +36,6 @@ class CustomLLM:
         verbose = verbose if verbose is not None else config["llm"]["verbose"]
 
         model_path = resolve_gguf_path(repo_id, filename)
-
         self.llm = Llama(
             model_path=model_path,
             n_ctx=n_ctx,

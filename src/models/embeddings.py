@@ -1,9 +1,8 @@
-from src.config import config
-from src.paths import MODELS_DIR
+import torch
 from sentence_transformers import SentenceTransformer, CrossEncoder
 
-
-import torch
+from src.config import config
+from src.paths import MODELS_DIR
 
 
 def get_device():

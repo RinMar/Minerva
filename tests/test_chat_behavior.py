@@ -173,7 +173,7 @@ class TestChatBehavior(unittest.TestCase):
         """
         from src.models.embeddings import reset_models
 
-        # Temporarily stop the mock patchers so real models load from disk
+        # 1. Temporarily stop the mock patchers so real models load from disk
         self.patcher_emb.stop()
         self.patcher_rerank.stop()
         self.patcher_graph_emb.stop()

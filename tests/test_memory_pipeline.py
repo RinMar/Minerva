@@ -8,14 +8,14 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import src.memory.store as memory_store
-import src.memory.retrieve as memory_retrieve
+import src.memory.store as memory_store  # noqa: E402
+import src.memory.retrieve as memory_retrieve  # noqa: E402
 
-from src.memory.db import get_session, Base
-from src.memory.db import EntityNode, GraphEdge
-import src.memory.db as db_module
+from src.memory.db import get_session, Base  # noqa: E402
+from src.memory.db import EntityNode, GraphEdge  # noqa: E402
+import src.memory.db as db_module  # noqa: E402
 
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import StaticPool  # noqa: E402
 
 # 1. First patch the database engine so we don't wipe the user's real memory.db!
 test_engine = create_engine(
