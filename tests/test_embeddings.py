@@ -12,10 +12,12 @@ import src.models.embeddings as emb_module
 class TestGetDevice(unittest.TestCase):
     """Tests for get_device()."""
 
-    def test_get_device_returns_config_value(self):
-        """get_device should return whatever config['llm']['device'] is."""
+    @patch("torch.cuda.is_available")
+    def test_get_device_falls_back_to_cpu_if_no_cuda(self, mock_cuda):
+        """get_device should fall back to 'cpu' if 'cuda' is requested but not available."""
+        mock_cuda.return_value = False
         with patch.dict(emb_module.config, {"llm": {"device": "cuda"}}, clear=False):
-            self.assertEqual(emb_module.get_device(), "cuda")
+            self.assertEqual(emb_module.get_device(), "cpu")
 
     def test_get_device_defaults_to_cpu(self):
         """get_device should default to 'cpu' if 'device' key is missing."""

@@ -3,8 +3,14 @@ from src.paths import MODELS_DIR
 from sentence_transformers import SentenceTransformer, CrossEncoder
 
 
+import torch
+
+
 def get_device():
-    return config["llm"].get("device", "cpu")
+    device = config["llm"].get("device", "cpu")
+    if device == "cuda" and not torch.cuda.is_available():
+        return "cpu"
+    return device
 
 
 _embedding_model = None

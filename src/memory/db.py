@@ -6,8 +6,10 @@ as well as defining the ORM schema models (EntityNode, GraphEdge, EmbeddingIndex
 from sqlalchemy import create_engine, Column, String, Text, ForeignKey, Integer
 from sqlalchemy.orm import sessionmaker, declarative_base
 from contextlib import contextmanager
+from alembic.config import Config
+from alembic import command
 
-from src.paths import DB_PATH
+from src.paths import get_resource_path, DB_PATH
 
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
@@ -69,17 +71,14 @@ class EmbeddingIndex(Base):
 
 def init_db():
     """Import all models and run Alembic migrations to the latest version."""
-    from alembic.config import Config
-    from alembic import command
-    import os
 
-    # Dynamically resolve path to alembic.ini relative to this file
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    alembic_ini_path = os.path.join(current_dir, "alembic.ini")
+    # Use get_resource_path to find alembic resources whether in dev or packaged via PyInstaller
+    alembic_ini_path = get_resource_path("resources/alembic.ini")
+    script_location = get_resource_path("src/memory/alembic")
 
     alembic_cfg = Config(alembic_ini_path)
     # Ensure script_location is also absolute to be safe
-    alembic_cfg.set_main_option("script_location", os.path.join(current_dir, "alembic"))
+    alembic_cfg.set_main_option("script_location", script_location)
 
     # Run the upgrade to 'head'
     command.upgrade(alembic_cfg, "head")

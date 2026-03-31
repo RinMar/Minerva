@@ -1,4 +1,12 @@
 import sys
+import os
+
+# Fix for PyInstaller windowed mode where sys.stdout/stderr can be None
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
+
 from src.config import config
 
 
