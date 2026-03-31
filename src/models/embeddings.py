@@ -1,12 +1,10 @@
 from src.config import config
 from src.paths import MODELS_DIR
-from sentence_transformers import SentenceTransformer, CrossEncoder
-
-
-import torch
+# Heavy imports moved to functions to speed up startup
 
 
 def get_device():
+    import torch
     device = config["llm"].get("device", "cpu")
     if device == "cuda" and not torch.cuda.is_available():
         return "cpu"
@@ -31,6 +29,7 @@ def get_embedding_model():
         model_id = config["models"].get(
             "embedding_model_id", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
         )
+        from sentence_transformers import SentenceTransformer
         print(f"Loading embedding model {model_id} on device: {get_device()}...")
         _embedding_model = SentenceTransformer(
             model_id,
@@ -43,6 +42,7 @@ def get_reranker_model():
     global _reranker_model
     if _reranker_model is None:
         model_id = config["models"].get("reranker_model_id", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+        from sentence_transformers import CrossEncoder
         print(f"Loading reranker model {model_id} on device: {get_device()}...")
         _reranker_model = CrossEncoder(
             model_id,

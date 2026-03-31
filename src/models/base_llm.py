@@ -6,7 +6,7 @@ text generation and streaming capabilities.
 import threading
 import re
 
-from llama_cpp import Llama
+# Llama is imported lazily in __init__
 
 from src.config import config
 from src.models.downloader import resolve_gguf_path
@@ -38,6 +38,7 @@ class CustomLLM:
 
         model_path = resolve_gguf_path(repo_id, filename)
 
+        from llama_cpp import Llama
         self.llm = Llama(
             model_path=model_path,
             n_ctx=n_ctx,
