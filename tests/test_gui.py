@@ -25,7 +25,7 @@ class TestGUIBridge(unittest.TestCase):
         self.mock_page = MockPage()
 
         # We patch Chat to avoid loading heavy LLM models during GUI tests
-        with patch('src.gui.bridge.Chat') as mock_chat_class:
+        with patch('src.chat.Chat') as mock_chat_class:
             self.mock_chat_instance = MagicMock()
             mock_chat_class.return_value = self.mock_chat_instance
 
@@ -137,11 +137,11 @@ class TestGUIBridge(unittest.TestCase):
 
     def test_get_performance_mode_returns_config_value(self):
         """get_performance_mode should return the current config value."""
-        with patch.dict('src.gui.bridge.config', {"performance_mode": "high"}, clear=False):
+        with patch.dict('src.config.config', {"performance_mode": "high"}, clear=False):
             result = self.bridge.get_performance_mode()
             self.assertEqual(result, "high")
 
-    @patch('src.gui.bridge.reset_models')
+    @patch('src.models.embeddings.reset_models')
     @patch('src.gui.bridge.save_performance_mode')
     @patch('src.gui.bridge.update_config_mode')
     def test_update_performance_mode_calls_pipeline(self, mock_update, mock_save, mock_reset):
@@ -169,7 +169,7 @@ class TestGUIBridge(unittest.TestCase):
 
     def test_bg_init_assistant_hides_loader_on_success(self):
         """The loader should always be hidden after successful initialization."""
-        with patch('src.gui.bridge.Chat') as mock_chat:
+        with patch('src.chat.Chat') as mock_chat:
             mock_chat.return_value = MagicMock()
 
             statuses = []
@@ -185,7 +185,7 @@ class TestGUIBridge(unittest.TestCase):
 
     def test_bg_init_assistant_hides_loader_on_failure(self):
         """The loader should be hidden even if Chat() raises an exception."""
-        with patch('src.gui.bridge.Chat', side_effect=RuntimeError("boom")):
+        with patch('src.chat.Chat', side_effect=RuntimeError("boom")):
             statuses = []
             self.bridge.model_loading_status.connect(
                 lambda loading, msg: statuses.append((loading, msg))

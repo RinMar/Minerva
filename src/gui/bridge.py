@@ -6,9 +6,7 @@ import threading
 import re
 from PySide6.QtCore import QObject, Slot, Signal
 
-from src.chat import Chat
 from src.config import config, update_config_mode, save_performance_mode, save_last_user
-from src.models.embeddings import reset_models
 from src.memory.db import get_session, User
 from src.gui.stream_parser import StreamParser
 
@@ -63,6 +61,10 @@ class Bridge(QObject):
         self.model_loading_status.emit(True, msg)
 
         try:
+            # 1. PEAK PERFORMANCE: We defer the heavy imports to the actual background thread
+            # so the main UI thread never touches torch or llama-cpp during import/MainWindow init.
+            from src.chat import Chat
+
             # Initialize the Chat object (this triggers heavy model loading/warm-up)
             self.assistant = Chat(user_id=self.user_id, llm=existing_llm)
 
@@ -170,6 +172,7 @@ class Bridge(QObject):
         print(f"[GUI] Requested performance mode switch: {mode}")
         save_performance_mode(mode)
         update_config_mode(mode)
+        from src.models.embeddings import reset_models
         reset_models()
         self.page.runJavaScript("clearChat();")
         self.initialize_assistant(existing_llm=None)
