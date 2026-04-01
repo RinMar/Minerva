@@ -4,7 +4,7 @@ import json
 
 from PySide6.QtCore import QCoreApplication
 
-from src.gui.main import Bridge
+from src.gui.bridge import Bridge  # noqa: E402
 
 # Ensure an application instance exists for QObject signals to work
 app = QCoreApplication.instance()
@@ -25,7 +25,7 @@ class TestGUIBridge(unittest.TestCase):
         self.mock_page = MockPage()
 
         # We patch Chat to avoid loading heavy LLM models during GUI tests
-        with patch('src.gui.main.Chat') as mock_chat_class:
+        with patch('src.chat.Chat') as mock_chat_class:
             self.mock_chat_instance = MagicMock()
             mock_chat_class.return_value = self.mock_chat_instance
 
@@ -52,7 +52,7 @@ class TestGUIBridge(unittest.TestCase):
         expected_js = f"updateGraph({json.dumps(test_data)})"
         self.assertIn(expected_js, self.mock_page.scripts)
 
-    @patch('src.gui.main.threading.Thread')
+    @patch('src.gui.bridge.threading.Thread')
     def test_send_message_starts_thread(self, mock_thread_class):
         mock_thread_instance = MagicMock()
         mock_thread_class.return_value = mock_thread_instance
@@ -141,9 +141,9 @@ class TestGUIBridge(unittest.TestCase):
             result = self.bridge.get_performance_mode()
             self.assertEqual(result, "high")
 
-    @patch('src.gui.main.reset_models')
-    @patch('src.gui.main.save_performance_mode')
-    @patch('src.gui.main.update_config_mode')
+    @patch('src.models.embeddings.reset_models')
+    @patch('src.gui.bridge.save_performance_mode')
+    @patch('src.gui.bridge.update_config_mode')
     def test_update_performance_mode_calls_pipeline(self, mock_update, mock_save, mock_reset):
         """Switching performance mode should save, update config, and reset models."""
         # Mock initialize_assistant to prevent background thread
@@ -169,7 +169,7 @@ class TestGUIBridge(unittest.TestCase):
 
     def test_bg_init_assistant_hides_loader_on_success(self):
         """The loader should always be hidden after successful initialization."""
-        with patch('src.gui.main.Chat') as mock_chat:
+        with patch('src.chat.Chat') as mock_chat:
             mock_chat.return_value = MagicMock()
 
             statuses = []
@@ -185,7 +185,7 @@ class TestGUIBridge(unittest.TestCase):
 
     def test_bg_init_assistant_hides_loader_on_failure(self):
         """The loader should be hidden even if Chat() raises an exception."""
-        with patch('src.gui.main.Chat', side_effect=RuntimeError("boom")):
+        with patch('src.chat.Chat', side_effect=RuntimeError("boom")):
             statuses = []
             self.bridge.model_loading_status.connect(
                 lambda loading, msg: statuses.append((loading, msg))

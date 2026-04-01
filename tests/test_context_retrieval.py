@@ -7,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 import src.memory.db as db_module
 from src.memory.db import Base, EntityNode, GraphEdge, EmbeddingIndex, get_session
-from src.memory.context_store import retrieve_context
+from src.memory.retrieve import retrieve_context
 
 
 # Mock embedding model
