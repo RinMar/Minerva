@@ -6,9 +6,18 @@ import threading
 import re
 from PySide6.QtCore import QObject, Slot, Signal
 
-from src.config import config, update_config_mode, save_performance_mode, save_last_user
+from src.config import (
+    config, update_model_settings, save_last_user,
+    MODEL_TOTAL_LAYERS, MODEL_PER_LAYER_MB, KV_PER_TOKEN_PER_LAYER_MB,
+    VRAM_FIXED_OVERHEAD_MB, CTX_MIN, CTX_MAX
+)
 from src.memory.db import get_session, User
 from src.gui.stream_parser import StreamParser
+from src.utils.vram import (
+    get_initial_vram_info,
+    estimate_max_gpu_layers,
+    estimate_max_context,
+)
 
 
 class Bridge(QObject):
@@ -23,6 +32,7 @@ class Bridge(QObject):
     user_switch_requested = Signal()
     profile_changed = Signal(int, str)
     model_loading_status = Signal(bool, str)  # (is_loading, message)
+    model_warning = Signal(str)  # Warning message banner for UI
 
     def __init__(self, page, user_id, user_name):
         super().__init__()
@@ -37,6 +47,7 @@ class Bridge(QObject):
         self.stream_token.connect(self._push_stream_token)
         self.stream_state.connect(self._push_stream_state)
         self.model_loading_status.connect(self._handle_model_loading_status)
+        self.model_warning.connect(self._handle_model_warning)
 
     def _handle_model_loading_status(self, is_loading, message):
         """Thread-safe slot to toggle the UI loader."""
@@ -45,6 +56,11 @@ class Bridge(QObject):
             self.page.runJavaScript(f"showModelLoader({escaped_msg})")
         else:
             self.page.runJavaScript("hideModelLoader()")
+
+    def _handle_model_warning(self, message):
+        """Thread-safe slot to display a model warning banner in the chat UI."""
+        escaped_msg = json.dumps(message)
+        self.page.runJavaScript(f"showModelWarning({escaped_msg})")
 
     def initialize_assistant(self, existing_llm=None):
         """Start the assistant initialization in a background thread."""
@@ -56,33 +72,105 @@ class Bridge(QObject):
         thread.start()
 
     def _bg_init_assistant(self, existing_llm=None):
-        """Perform the actual model loading in the background."""
+        """Perform the actual model loading in the background with proactive VRAM check & OOM fallback."""
         msg = "Loading AI Models..." if not existing_llm else "Switching Profile..."
         self.model_loading_status.emit(True, msg)
 
         try:
-            # 1. PEAK PERFORMANCE: We defer the heavy imports to the actual background thread
-            # so the main UI thread never touches torch or llama-cpp during import/MainWindow init.
             from src.chat import Chat
+            from src.models.base_llm import CustomLLM
 
-            # Initialize the Chat object (this triggers heavy model loading/warm-up)
-            self.assistant = Chat(user_id=self.user_id, llm=existing_llm)
+            llm_to_use = existing_llm
 
-            # Ensure embedding/reranker are also warmed up while we show the loader
-            # if they haven't been loaded yet.
+            if llm_to_use is None:
+                # Proactive VRAM check to avoid OOM
+                from src.utils.vram import get_initial_vram_info
+                vram_info = get_initial_vram_info()
+                free_vram = vram_info.get("free_mb", 0.0)
+                req_layers = config.get("llm", {}).get("n_gpu_layers", 0)
+                req_ctx = config.get("llm", {}).get("n_ctx", 8192)
+
+                if free_vram > 0 and req_layers > 0:
+                    safe_layers = estimate_max_gpu_layers(
+                        free_vram_mb=free_vram,
+                        n_ctx=req_ctx,
+                        total_layers=MODEL_TOTAL_LAYERS,
+                    )
+
+                    if req_layers > safe_layers:
+                        safe_ctx = estimate_max_context(
+                            free_vram_mb=free_vram,
+                            n_gpu_layers=safe_layers,
+                            ctx_min=CTX_MIN,
+                            ctx_max=req_ctx,
+                        )
+                        print(
+                            f"[GUI] Proactive VRAM adjustment: Requested {req_layers} layers, "
+                            f"clamping to {safe_layers}/{MODEL_TOTAL_LAYERS} layers ({safe_ctx} ctx) "
+                            f"for {free_vram:.0f}MB free VRAM."
+                        )
+                        update_model_settings(safe_layers, safe_ctx)
+
+                        warn_text = (
+                            f"⚠️ Insufficient VRAM for requested config. "
+                            f"Auto-configured to {safe_layers}/{MODEL_TOTAL_LAYERS} GPU layers, "
+                            f"{safe_ctx:,} context tokens."
+                        )
+                        self.model_warning.emit(warn_text)
+
+            # Attempt model load
+            try:
+                self.assistant = Chat(user_id=self.user_id, llm=llm_to_use)
+            except Exception as load_err:
+                print(f"[GUI] WARNING: Primary model loading failed: {load_err}")
+
+                # Reactive Fallback logic as secondary safety net
+                vram_info = get_initial_vram_info()
+                current_ctx = config.get("llm", {}).get("n_ctx", 8192)
+                req_layers = config.get("llm", {}).get("n_gpu_layers", 0)
+                free_vram = vram_info.get("free_mb", 0.0)
+
+                safe_layers = estimate_max_gpu_layers(
+                    free_vram_mb=free_vram,
+                    n_ctx=current_ctx,
+                    total_layers=MODEL_TOTAL_LAYERS,
+                )
+                if safe_layers >= req_layers:
+                    safe_layers = max(0, safe_layers - 10)
+
+                print(
+                    f"[GUI] Attempting fallback load with reduced GPU layers: "
+                    f"{safe_layers}/{MODEL_TOTAL_LAYERS}..."
+                )
+                self.model_loading_status.emit(True, f"Retrying with {safe_layers} GPU layers...")
+
+                fallback_llm = CustomLLM(
+                    n_gpu_layers=safe_layers,
+                    n_ctx=current_ctx,
+                )
+                self.assistant = Chat(user_id=self.user_id, llm=fallback_llm)
+                update_model_settings(safe_layers, current_ctx)
+
+                warn_text = (
+                    f"⚠️ Insufficient GPU VRAM for model loading. "
+                    f"Auto-offloaded {safe_layers}/{MODEL_TOTAL_LAYERS} layers to GPU."
+                )
+                self.model_warning.emit(warn_text)
+
+            # Ensure embedding/reranker models are warmed up
             if hasattr(self.assistant, "emb_model"):
                 _ = self.assistant.emb_model
             if hasattr(self.assistant, "cross_encoder"):
                 _ = self.assistant.cross_encoder
 
-            print(f"[GUI] Assistant initialized for user {self.user_id}")
-        except Exception as e:
-            try:
-                print(f"[GUI] WARNING: Error during model loading: {e}")
-            except Exception:
-                pass  # Swallow print encoding errors on Windows
+            print(f"[GUI] Assistant successfully initialized for user {self.user_id}")
+
+        except Exception as final_err:
+            print(f"[GUI] CRITICAL: Failed to load models after fallback: {final_err}")
+            self.assistant = None
+            self.model_warning.emit("❌ Failed to load AI models. Please reduce GPU layers in settings.")
         finally:
-            # ALWAYS hide the loader, even if initialization failed
+            # ALWAYS hide the loader overlay
             self.model_loading_status.emit(False, "")
 
     @Slot()
@@ -166,21 +254,64 @@ class Bridge(QObject):
         self.page.runJavaScript("clearChat(); clearGraph();")
         self.initialize_assistant(existing_llm=existing_llm)
 
-    @Slot(str)
-    def update_performance_mode(self, mode):
-        """Switch performance mode, reload config, and re-initialize models."""
-        print(f"[GUI] Requested performance mode switch: {mode}")
-        save_performance_mode(mode)
-        update_config_mode(mode)
+    @Slot(int, int)
+    def update_model_settings(self, n_gpu_layers, n_ctx):
+        """Update model GPU layers and context size, reload config, and re-initialize models."""
+        print(f"[GUI] Requested model settings update: n_gpu_layers={n_gpu_layers}, n_ctx={n_ctx}")
+        update_model_settings(n_gpu_layers, n_ctx)
         from src.models.embeddings import reset_models
         reset_models()
-        self.page.runJavaScript("clearChat();")
+        self.page.runJavaScript("clearChat(); hideModelWarning();")
+
+        # Explicitly free the old assistant before reloading to ensure VRAM is released
+        if self.assistant:
+            self.assistant = None
+            import gc
+            gc.collect()
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except ImportError:
+                pass
+
         self.initialize_assistant(existing_llm=None)
+
+    @Slot(str)
+    def update_performance_mode(self, mode):
+        """Legacy slot for backward compatibility."""
+        n_layers = MODEL_TOTAL_LAYERS if mode.lower() == "high" else 24
+        n_ctx = 40960 if mode.lower() == "high" else 8192
+        self.update_model_settings(n_layers, n_ctx)
+
+    @Slot(result=str)
+    def get_vram_info(self):
+        """Return JSON string with VRAM info + model estimation constants."""
+        info = get_initial_vram_info()
+
+        info.update({
+            "total_layers": MODEL_TOTAL_LAYERS,
+            "per_layer_mb": MODEL_PER_LAYER_MB,
+            "kv_per_token_per_layer_mb": KV_PER_TOKEN_PER_LAYER_MB,
+            "overhead_mb": VRAM_FIXED_OVERHEAD_MB,
+            "ctx_min": CTX_MIN,
+            "ctx_max": CTX_MAX,
+        })
+        return json.dumps(info)
+
+    @Slot(result=str)
+    def get_model_settings(self):
+        """Return JSON string with current n_gpu_layers and n_ctx."""
+        llm_cfg = config.get("llm", {})
+        return json.dumps({
+            "n_gpu_layers": llm_cfg.get("n_gpu_layers", 0),
+            "n_ctx": llm_cfg.get("n_ctx", 8192),
+        })
 
     @Slot(result=str)
     def get_performance_mode(self):
-        """Return the current performance mode for the UI."""
-        return config.get("performance_mode", "low")
+        """Legacy slot for backward compatibility."""
+        return "high" if config.get("llm", {}).get("n_gpu_layers", 0) > 30 else "low"
 
     @Slot(str)
     def send_message(self, message):

@@ -23,18 +23,29 @@
             <div class="modal-title">⚙️ System Settings</div>
             
             <div class="setting-group">
-                <div class="setting-label">Performance Mode</div>
-                <div class="performance-options">
-                    <div class="perf-opt" id="perf-low" onclick="selectPerf('low')">
-                        <div class="perf-opt-title">🚀 Low</div>
-                        <div class="perf-opt-desc">CPU Base (Aggressive Offloading)</div>
+                <div class="setting-label">GPU Offload</div>
+                <div class="slider-container">
+                    <div class="slider-labels"><span>CPU</span><span>Full GPU</span></div>
+                    <div class="slider-track-wrapper">
+                        <input type="range" id="gpu-layer-slider" min="0" max="65" value="0" step="1">
+                        <div class="slider-limit-marker" id="gpu-limit-marker" title="Maximum safe GPU layers based on VRAM"></div>
                     </div>
-                    <div class="perf-opt" id="perf-high" onclick="selectPerf('high')">
-                        <div class="perf-opt-title">⚡ High</div>
-                        <div class="perf-opt-desc">Full GPU (Faster Inference)</div>
-                    </div>
+                    <div class="slider-info" id="layer-info">0 / 65 layers on GPU</div>
                 </div>
             </div>
+
+            <div class="setting-group">
+                <div class="setting-label">Context Length</div>
+                <div class="slider-container">
+                    <div class="slider-labels"><span>2K</span><span>40K</span></div>
+                    <div class="slider-track-wrapper">
+                        <input type="range" id="ctx-slider" min="2048" max="40960" value="8192" step="1024">
+                        <div class="slider-limit-marker" id="ctx-limit-marker" title="Maximum safe context length based on VRAM"></div>
+                    </div>
+                    <div class="slider-info" id="ctx-info">8,192 tokens</div>
+                </div>
+            </div>
+
 
             <div class="modal-actions">
                 <button class="modal-btn cancel" onclick="closeSettings()">Cancel</button>
