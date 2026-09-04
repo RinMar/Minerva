@@ -33,14 +33,19 @@ jobs:
       run: flake8
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
-    - name: Install system dependencies (musl and UI libs)
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y musl musl-dev musl-tools xvfb libegl1 libgl1 libxkbcommon-x11-0 libdbus-1-3 libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxcb-cursor0
@@ -50,5 +55,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu --only-binary llama-cpp-python
         pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu --no-cache-dir
-    - name: Run tests
+    - name: Run tests (Linux)
+      if: runner.os == 'Linux'
       run: xvfb-run -a python -m pytest -v
+    - name: Run tests (Windows)
+      if: runner.os == 'Windows'
+      env:
+        QT_QPA_PLATFORM: offscreen
+      run: python -m pytest -v
+

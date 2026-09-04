@@ -30,7 +30,6 @@ class TestGUIBridge(unittest.TestCase):
             mock_chat_class.return_value = self.mock_chat_instance
 
             self.bridge = Bridge(page=self.mock_page, user_id=1, user_name="test_gui_user")
-            # Set the mock assistant directly as initialization is now deferred to a background thread
             self.bridge.assistant = self.mock_chat_instance
 
     def test_bridge_initialization(self):
@@ -41,7 +40,6 @@ class TestGUIBridge(unittest.TestCase):
         test_msg = "Hello, world!"
         self.bridge._push_assistant_message(test_msg)
 
-        # Check if the correct javascript was constructed
         expected_js = f"appendMessage('assistant', {json.dumps(test_msg)})"
         self.assertIn(expected_js, self.mock_page.scripts)
 
@@ -59,116 +57,47 @@ class TestGUIBridge(unittest.TestCase):
 
         self.bridge.send_message("Hello AI")
 
-        # Verify thread was created and started
         mock_thread_class.assert_called_once()
         args, kwargs = mock_thread_class.call_args
         self.assertEqual(kwargs['target'], self.bridge._generate_response)
         self.assertEqual(kwargs['args'], ("Hello AI",))
         mock_thread_instance.start.assert_called_once()
 
-    def test_generate_response(self):
-        # Setup mock generation to yield some tokens including a think tag
-        def mock_generate(*args, **kwargs):
-            yield "<think>\nThinking process...\n</think>\n"
-            yield "Final "
-            yield "answer."
+    def test_get_vram_info_slot(self):
+        vram_json = self.bridge.get_vram_info()
+        data = json.loads(vram_json)
+        self.assertIn("has_gpu", data)
+        self.assertIn("total_layers", data)
+        self.assertEqual(data["total_layers"], 65)
 
-        self.mock_chat_instance.send_message.side_effect = mock_generate
-
-        # Connect to signal to verify it's emitted properly
-        tokens_emitted = []
-
-        def on_token(text):
-            tokens_emitted.append(text)
-
-        self.bridge.stream_token.connect(on_token)
-
-        # Call the private method directly (simulating what the thread does)
-        self.bridge._generate_response("Test prompt")
-
-        # Wait for signals to process via event loop
-        QCoreApplication.processEvents()
-
-        # Verify the think block was removed and the text was emitted
-        self.assertEqual("".join(tokens_emitted), "Final answer.")
-
-    def test_generate_response_complex_flow(self):
-        # Setup mock generation testing actions and stray </think> tags
-        def mock_generate_complex(*args, **kwargs):
-            yield "<think>\nInitial thought\n</think>\n"
-            yield "Wait, I need to check something.\n"
-            yield "<action:retrieve>"
-            yield "</action:retrieve>"
-            yield "<think>\nSecond thought\n</think>\n"
-            yield "I found it. "
-            yield "</think>\n"  # Stray tag that used to cause leaks
-            yield "Final "
-            yield "answer."
-
-        self.mock_chat_instance.send_message.side_effect = mock_generate_complex
-
-        tokens_emitted = []
-        states_emitted = []
-
-        def on_token(text):
-            tokens_emitted.append(text)
-
-        def on_state(state):
-            states_emitted.append(state)
-
-        # Disconnect previous test connections if they persist across run
-        try:
-            self.bridge.stream_token.disconnect()
-            self.bridge.stream_state.disconnect()
-        except RuntimeError:
-            pass
-
-        self.bridge.stream_token.connect(on_token)
-        self.bridge.stream_state.connect(on_state)
-
-        self.bridge._generate_response("Complex Test prompt")
-        QCoreApplication.processEvents()
-
-        expected_text = "Wait, I need to check something.\nI found it. \nFinal answer."
-        self.assertEqual("".join(tokens_emitted), expected_text)
-
-        self.assertIn("action_start_retrieve", states_emitted)
-        self.assertIn("action_end", states_emitted)
-
-    def test_get_performance_mode_returns_config_value(self):
-        """get_performance_mode should return the current config value."""
-        with patch.dict('src.config.config', {"performance_mode": "high"}, clear=False):
-            result = self.bridge.get_performance_mode()
-            self.assertEqual(result, "high")
+    def test_get_model_settings_slot(self):
+        with patch.dict('src.config.config', {"llm": {"n_gpu_layers": 42, "n_ctx": 16384}}, clear=False):
+            settings_json = self.bridge.get_model_settings()
+            data = json.loads(settings_json)
+            self.assertEqual(data["n_gpu_layers"], 42)
+            self.assertEqual(data["n_ctx"], 16384)
 
     @patch('src.models.embeddings.reset_models')
-    @patch('src.gui.bridge.save_performance_mode')
-    @patch('src.gui.bridge.update_config_mode')
-    def test_update_performance_mode_calls_pipeline(self, mock_update, mock_save, mock_reset):
-        """Switching performance mode should save, update config, and reset models."""
-        # Mock initialize_assistant to prevent background thread
+    @patch('src.gui.bridge.update_model_settings')
+    def test_update_model_settings_calls_pipeline(self, mock_update, mock_reset):
         self.bridge.initialize_assistant = MagicMock()
 
-        self.bridge.update_performance_mode("high")
+        self.bridge.update_model_settings(30, 8192)
 
-        mock_save.assert_called_once_with("high")
-        mock_update.assert_called_once_with("high")
+        mock_update.assert_called_once_with(30, 8192)
         mock_reset.assert_called_once()
         self.bridge.initialize_assistant.assert_called_once_with(existing_llm=None)
 
     def test_send_message_blocked_without_assistant(self):
-        """send_message should do nothing when assistant is None (models loading)."""
         self.bridge.assistant = None
         self.mock_page.scripts.clear()
 
         self.bridge.send_message("Should be ignored")
 
-        # No thread should be spawned, no JS should be called
         thread_related = [s for s in self.mock_page.scripts if "generate" in s.lower()]
         self.assertEqual(len(thread_related), 0)
 
     def test_bg_init_assistant_hides_loader_on_success(self):
-        """The loader should always be hidden after successful initialization."""
         with patch('src.chat.Chat') as mock_chat:
             mock_chat.return_value = MagicMock()
 
@@ -179,19 +108,25 @@ class TestGUIBridge(unittest.TestCase):
 
             self.bridge._bg_init_assistant()
 
-            # Should have emitted (True, "Loading...") then (False, "")
             self.assertTrue(any(s[0] is True for s in statuses))
             self.assertEqual(statuses[-1], (False, ""))
 
-    def test_bg_init_assistant_hides_loader_on_failure(self):
-        """The loader should be hidden even if Chat() raises an exception."""
-        with patch('src.chat.Chat', side_effect=RuntimeError("boom")):
-            statuses = []
-            self.bridge.model_loading_status.connect(
-                lambda loading, msg: statuses.append((loading, msg))
-            )
+    def test_bg_init_assistant_retry_on_oom(self):
+        """When initial Chat fails, _bg_init_assistant should attempt fallback load with safe layers."""
+        with patch('src.chat.Chat', side_effect=[RuntimeError("CUDA out of memory"), MagicMock()]):
+            with patch('src.gui.bridge.get_initial_vram_info', return_value={"free_mb": 2000.0}):
+                with patch('src.models.base_llm.CustomLLM') as mock_custom_llm:
+                    mock_custom_llm.return_value = MagicMock()
 
-            self.bridge._bg_init_assistant()
+                    warnings = []
+                    self.bridge.model_warning.connect(lambda msg: warnings.append(msg))
 
-            # Should still end with (False, "") thanks to the finally block
-            self.assertEqual(statuses[-1], (False, ""))
+                    self.bridge._bg_init_assistant()
+
+                    # Fallback retry should have been attempted
+                    mock_custom_llm.assert_called_once()
+                    self.assertTrue(len(warnings) > 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

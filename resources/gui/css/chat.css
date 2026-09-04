@@ -61,6 +61,33 @@ body {
     transform: translateY(0);
 }
 
+/* ── Warning Banner ── */
+.warning-banner {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.2));
+    border-bottom: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fbbf24;
+    padding: 8px 14px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: fadeIn 0.3s ease;
+}
+
+.warning-close {
+    background: transparent;
+    border: none;
+    color: #fbbf24;
+    cursor: pointer;
+    font-size: 14px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.warning-close:hover {
+    opacity: 1;
+}
+
 /* ── Profile Dropdown ── */
 .dropdown-container {
     position: relative;

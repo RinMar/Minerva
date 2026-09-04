@@ -114,6 +114,22 @@ window.hideModelLoader = function() {
     }
 };
 
+window.showModelWarning = function(msg) {
+    const banner = document.getElementById('model-warning-banner');
+    const text = document.getElementById('warning-text');
+    if (banner && text) {
+        text.textContent = msg;
+        banner.style.display = 'flex';
+    }
+};
+
+window.hideModelWarning = function() {
+    const banner = document.getElementById('model-warning-banner');
+    if (banner) {
+        banner.style.display = 'none';
+    }
+};
+
 // ── Input Handling ──
 function sendMessage() {
     if (!modelReady) return; // Block sending while models load
