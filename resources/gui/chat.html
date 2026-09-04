@@ -26,7 +26,12 @@
             <button id="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
         </div>
     </div>
-    
+    <!-- Model Warning Banner -->
+    <div id="model-warning-banner" class="warning-banner" style="display: none;">
+        <span id="warning-text"></span>
+        <button onclick="hideModelWarning()" class="warning-close" title="Dismiss">✕</button>
+    </div>
+
     <div id="chat-messages">
         <div class="msg system">Connected to Minerva. Your knowledge graph is loading…</div>
     </div>

@@ -25,6 +25,10 @@ if splash:
 from src.config import config  # noqa: E402
 from src.gui.main import MainWindow  # noqa: E402
 from src.memory.db import init_db, get_session, User  # noqa: E402
+from src.utils.vram import get_initial_vram_info  # noqa: E402
+
+# Pre-cache VRAM info before any models load
+get_initial_vram_info()
 
 # 3. Application initialization logic (Database, Profile, etc.)
 init_db()
