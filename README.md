@@ -87,6 +87,44 @@ for token in assistant.send_message("Hello Minerva!", stream=True):
     print(token, end="", flush=True)
 ```
 
+## Example Testing Prompts
+
+Use these natural conversation prompts to test Minerva's active memory storage, knowledge graph extraction (`manage_memory`), and multi-hop retrieval (`retrieve`).
+
+### Scenario 1: Family, Locations & Pets
+**Tell Minerva:**
+- *"My sister Sarah moved to Berlin last month and started working as a UX Designer at TechCorp."*
+- *"Sarah adopted a 2-year-old Golden Retriever named Buster who loves running in Tiergarten."*
+- *"Her senior manager at TechCorp is Alex, who is a coffee enthusiast and owns a La Marzocco machine."*
+
+**Test Questions:**
+- *"Where does my sister live and what is her job?"*
+- *"What pet does Sarah have and where do they go for runs?"*
+- *"Who is Alex and what kind of coffee machine does he have?"*
+- *"Who manages my sister at work?"*
+
+### Scenario 2: Work Projects & Tech Stack
+**Tell Minerva:**
+- *"I'm building a project called Hyperion with my lead developer Marcus."*
+- *"Hyperion uses PostgreSQL for the primary database and FastAPI for the backend framework."*
+- *"Marcus prefers Tailwind CSS for styling, but our client Elena insisted we use pure custom CSS."*
+
+**Test Questions:**
+- *"Who am I working with on project Hyperion?"*
+- *"What tech stack are we using for Hyperion?"*
+- *"What styling approach did Elena request for our project?"*
+
+### Scenario 3: Preferences & Multi-hop Relations
+**Tell Minerva:**
+- *"My favorite restaurant in Munich is Osteria Del Corso, which is famous for its Truffle Pasta."*
+- *"I always order an Aperol Spritz when I visit Osteria Del Corso with my friend David."*
+- *"David is severely allergic to shellfish, so we always avoid seafood restaurants."*
+
+**Test Questions:**
+- *"What is my favorite restaurant in Munich and what drink do I get there?"*
+- *"Why do David and I avoid seafood places?"*
+- *"Who goes to Osteria Del Corso with me?"*
+
 ## Testing
 
 The Minerva test suite strictly isolates your production `.db` files from its operations by booting isolated `sqlite:///:memory:` instances for the assertions.
