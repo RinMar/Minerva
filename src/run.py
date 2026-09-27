@@ -50,7 +50,7 @@ with get_session() as session:
 
 # 4. Create and show the main window
 window = MainWindow(user_id=start_id, user_name=start_name)
-window.resize(1400, 850)
+window.adjust_size_to_screen()
 window.show()
 
 # 5. Finish splash screen once the main window is ready

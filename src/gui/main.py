@@ -23,7 +23,31 @@ class MainWindow(QMainWindow):
         self.user_name = user_name
         self.setWindowTitle(f"Minerva — Knowledge Graph ({self.user_name})")
         self.setWindowIcon(QIcon(get_resource_path("resources/logo.svg")))
-        self.setMinimumSize(480, 360)
+        self.setMinimumSize(400, 300)
+        self.adjust_size_to_screen()
+
+    def adjust_size_to_screen(self):
+        """Dynamically fit window dimensions and center it within available screen bounds."""
+        screen = QApplication.primaryScreen()
+        if not screen:
+            self.resize(1000, 680)
+            return
+
+        geom = screen.availableGeometry()
+        # Cap window dimensions to fit within available screen space (max 90% width, 85% height)
+        target_w = min(1200, int(geom.width() * 0.90))
+        target_h = min(780, int(geom.height() * 0.85))
+
+        # Clamp to minimum safe dimensions
+        target_w = max(400, target_w)
+        target_h = max(300, target_h)
+
+        self.resize(target_w, target_h)
+
+        # Center on screen
+        x = geom.x() + (geom.width() - target_w) // 2
+        y = geom.y() + (geom.height() - target_h) // 2
+        self.move(x, y)
 
         self.web = QWebEngineView()
 
@@ -137,7 +161,7 @@ if __name__ == "__main__":
             start_id, start_name = u.id, u.name
 
     window = MainWindow(user_id=start_id, user_name=start_name)
-    window.resize(1200, 800)
+    window.adjust_size_to_screen()
     window.show()
 
     sys.exit(app.exec())
