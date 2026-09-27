@@ -143,6 +143,12 @@ for token in assistant.send_message("What do you know about my sister Sarah?", s
     print(token, end="", flush=True)
 ```
 
+### Building Standalone Executable
+To bundle Minerva into a standalone desktop executable using PyInstaller:
+```bash
+pyinstaller --noconfirm Minerva.spec
+```
+
 ---
 
 ## Example Testing Prompts
