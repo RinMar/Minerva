@@ -58,23 +58,34 @@ function hideModelLoader() {
     if (win && win.hideModelLoader) win.hideModelLoader();
 }
 
-// ── Settings Loader Controls (Called by Python or Chat UI) ──
+// ── Settings Controls (Called by Python or Chat UI) ──
 let vramData = null;
+let availableModels = [];
+let selectedModelKey = '';
 
 function showSettings() {
     const modal = document.getElementById('settings-modal');
     
     if (window.pyBridge) {
-        window.pyBridge.get_vram_info(function(vramJson) {
-            vramData = JSON.parse(vramJson);
-            window.pyBridge.get_model_settings(function(settingsJson) {
-                const settings = JSON.parse(settingsJson);
-                initSettingsUI(settings);
-                modal.style.display = 'flex';
+        window.pyBridge.get_available_models(function(modelsJson) {
+            availableModels = JSON.parse(modelsJson);
+            window.pyBridge.get_vram_info(function(vramJson) {
+                vramData = JSON.parse(vramJson);
+                window.pyBridge.get_model_settings(function(settingsJson) {
+                    const settings = JSON.parse(settingsJson);
+                    selectedModelKey = settings.model_key || '';
+                    initSettingsUI(settings);
+                    modal.style.display = 'flex';
+                });
             });
         });
     } else {
         // Fallback for standalone browser dev testing
+        availableModels = [
+            { key: 'qwen3.5-9b', name: 'Qwen3.5 9B', description: '🧠 Stronger — Higher quality responses and deeper reasoning.', total_layers: 65, per_layer_mb: 80.0, kv_per_token_per_layer_mb: 0.00012 },
+            { key: 'qwen3.5-4b', name: 'Qwen3.5 4B', description: '⚡ Faster — Lightweight and responsive.', total_layers: 37, per_layer_mb: 45.0, kv_per_token_per_layer_mb: 0.00008 },
+        ];
+        selectedModelKey = 'qwen3.5-9b';
         vramData = {
             has_gpu: true,
             has_cuda: true,
@@ -88,14 +99,62 @@ function showSettings() {
             ctx_min: 2048,
             ctx_max: 40960
         };
-        initSettingsUI({ n_gpu_layers: 0, n_ctx: 8192 });
+        initSettingsUI({ n_gpu_layers: 0, n_ctx: 8192, model_key: 'qwen3.5-9b' });
         modal.style.display = 'flex';
     }
+}
+
+function renderModelCards() {
+    const container = document.getElementById('model-selector');
+    container.innerHTML = '';
+
+    availableModels.forEach(m => {
+        const card = document.createElement('div');
+        card.className = 'model-card' + (m.key === selectedModelKey ? ' active' : '');
+        card.dataset.key = m.key;
+        card.innerHTML = `
+            <div class="model-card-header">
+                <div class="model-radio"></div>
+                <div class="model-card-name">${m.name}</div>
+            </div>
+            <div class="model-card-desc">${m.description}</div>
+        `;
+        card.addEventListener('click', () => selectModel(m.key));
+        container.appendChild(card);
+    });
+}
+
+function selectModel(key) {
+    selectedModelKey = key;
+
+    // Update card styles
+    document.querySelectorAll('.model-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.key === key);
+    });
+
+    // Update vramData with the selected model's per-layer constants
+    const model = availableModels.find(m => m.key === key);
+    if (model) {
+        vramData.total_layers = model.total_layers;
+        vramData.per_layer_mb = model.per_layer_mb;
+        vramData.kv_per_token_per_layer_mb = model.kv_per_token_per_layer_mb;
+    }
+
+    // Update GPU slider max and recalculate limits
+    const gpuSlider = document.getElementById('gpu-layer-slider');
+    gpuSlider.max = vramData.total_layers;
+    if (parseInt(gpuSlider.value) > vramData.total_layers) {
+        gpuSlider.value = vramData.total_layers;
+    }
+    recalcLimits();
 }
 
 function initSettingsUI(settings) {
     const gpuSlider = document.getElementById('gpu-layer-slider');
     const ctxSlider = document.getElementById('ctx-slider');
+
+    selectedModelKey = settings.model_key || selectedModelKey;
+    renderModelCards();
 
     gpuSlider.max = vramData.total_layers;
     ctxSlider.min = vramData.ctx_min;
@@ -253,7 +312,7 @@ function saveSettings() {
     const nLayers = parseInt(document.getElementById('gpu-layer-slider').value);
     const nCtx = parseInt(document.getElementById('ctx-slider').value);
     if (window.pyBridge) {
-        window.pyBridge.update_model_settings(nLayers, nCtx);
+        window.pyBridge.update_model_settings(nLayers, nCtx, selectedModelKey);
     }
 }
 

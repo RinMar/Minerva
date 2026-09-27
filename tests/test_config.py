@@ -11,7 +11,7 @@ from unittest.mock import patch
 import src.config as config_module
 from src.config import (
     load_config, update_model_settings, save_model_settings,
-    save_last_user, DEFAULT_CONFIG_TOML, MODEL_TOTAL_LAYERS
+    save_last_user, DEFAULT_CONFIG_TOML, MODEL_REGISTRY
 )
 
 
@@ -98,7 +98,7 @@ class TestSaveModelSettings(unittest.TestCase):
 
     def test_save_model_settings_preserves_other_sections(self):
         """Saving model settings should not destroy other config sections."""
-        save_model_settings(MODEL_TOTAL_LAYERS, 40960)
+        save_model_settings(MODEL_REGISTRY["qwen3.5-9b"]["total_layers"], 40960)
 
         with open(self.tmp_config, "rb") as f:
             raw = tomllib.load(f)

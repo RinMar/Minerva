@@ -8,7 +8,7 @@ from PySide6.QtCore import QObject, Slot, Signal
 
 from src.config import (
     config, update_model_settings, save_last_user,
-    MODEL_TOTAL_LAYERS, MODEL_PER_LAYER_MB, KV_PER_TOKEN_PER_LAYER_MB,
+    MODEL_REGISTRY, DEFAULT_MODEL_KEY, get_active_model_profile,
     VRAM_FIXED_OVERHEAD_MB, CTX_MIN, CTX_MAX
 )
 from src.memory.db import get_session, User
@@ -80,6 +80,7 @@ class Bridge(QObject):
             from src.chat import Chat
             from src.models.base_llm import CustomLLM
 
+            profile = get_active_model_profile()
             llm_to_use = existing_llm
 
             if llm_to_use is None:
@@ -94,7 +95,7 @@ class Bridge(QObject):
                     safe_layers = estimate_max_gpu_layers(
                         free_vram_mb=free_vram,
                         n_ctx=req_ctx,
-                        total_layers=MODEL_TOTAL_LAYERS,
+                        total_layers=profile["total_layers"],
                     )
 
                     if req_layers > safe_layers:
@@ -106,14 +107,14 @@ class Bridge(QObject):
                         )
                         print(
                             f"[GUI] Proactive VRAM adjustment: Requested {req_layers} layers, "
-                            f"clamping to {safe_layers}/{MODEL_TOTAL_LAYERS} layers ({safe_ctx} ctx) "
+                            f"clamping to {safe_layers}/{profile['total_layers']} layers ({safe_ctx} ctx) "
                             f"for {free_vram:.0f}MB free VRAM."
                         )
                         update_model_settings(safe_layers, safe_ctx)
 
                         warn_text = (
                             f"⚠️ Insufficient VRAM for requested config. "
-                            f"Auto-configured to {safe_layers}/{MODEL_TOTAL_LAYERS} GPU layers, "
+                            f"Auto-configured to {safe_layers}/{profile['total_layers']} GPU layers, "
                             f"{safe_ctx:,} context tokens."
                         )
                         self.model_warning.emit(warn_text)
@@ -133,14 +134,14 @@ class Bridge(QObject):
                 safe_layers = estimate_max_gpu_layers(
                     free_vram_mb=free_vram,
                     n_ctx=current_ctx,
-                    total_layers=MODEL_TOTAL_LAYERS,
+                    total_layers=profile["total_layers"],
                 )
                 if safe_layers >= req_layers:
                     safe_layers = max(0, safe_layers - 10)
 
                 print(
                     f"[GUI] Attempting fallback load with reduced GPU layers: "
-                    f"{safe_layers}/{MODEL_TOTAL_LAYERS}..."
+                    f"{safe_layers}/{profile['total_layers']}..."
                 )
                 self.model_loading_status.emit(True, f"Retrying with {safe_layers} GPU layers...")
 
@@ -153,7 +154,7 @@ class Bridge(QObject):
 
                 warn_text = (
                     f"⚠️ Insufficient GPU VRAM for model loading. "
-                    f"Auto-offloaded {safe_layers}/{MODEL_TOTAL_LAYERS} layers to GPU."
+                    f"Auto-offloaded {safe_layers}/{profile['total_layers']} layers to GPU."
                 )
                 self.model_warning.emit(warn_text)
 
@@ -254,11 +255,12 @@ class Bridge(QObject):
         self.page.runJavaScript("clearChat(); clearGraph();")
         self.initialize_assistant(existing_llm=existing_llm)
 
-    @Slot(int, int)
-    def update_model_settings(self, n_gpu_layers, n_ctx):
-        """Update model GPU layers and context size, reload config, and re-initialize models."""
-        print(f"[GUI] Requested model settings update: n_gpu_layers={n_gpu_layers}, n_ctx={n_ctx}")
-        update_model_settings(n_gpu_layers, n_ctx)
+    @Slot(int, int, str)
+    def update_model_settings(self, n_gpu_layers, n_ctx, model_key=""):
+        """Update model GPU layers, context size, and optionally switch model, then re-initialize."""
+        key_to_save = model_key if model_key else None
+        print(f"[GUI] Requested model settings update: n_gpu_layers={n_gpu_layers}, n_ctx={n_ctx}, model_key={model_key}")
+        update_model_settings(n_gpu_layers, n_ctx, model_key=key_to_save)
         from src.models.embeddings import reset_models
         reset_models()
         self.page.runJavaScript("clearChat(); hideModelWarning();")
@@ -280,19 +282,36 @@ class Bridge(QObject):
     @Slot(str)
     def update_performance_mode(self, mode):
         """Legacy slot for backward compatibility."""
-        n_layers = MODEL_TOTAL_LAYERS if mode.lower() == "high" else 24
+        profile = get_active_model_profile()
+        n_layers = profile["total_layers"] if mode.lower() == "high" else 24
         n_ctx = 40960 if mode.lower() == "high" else 8192
         self.update_model_settings(n_layers, n_ctx)
 
     @Slot(result=str)
+    def get_available_models(self):
+        """Return JSON list of available models with key, name, and description."""
+        models = []
+        for key, profile in MODEL_REGISTRY.items():
+            models.append({
+                "key": key,
+                "name": profile["name"],
+                "description": profile["description"],
+                "total_layers": profile["total_layers"],
+                "per_layer_mb": profile["per_layer_mb"],
+                "kv_per_token_per_layer_mb": profile["kv_per_token_per_layer_mb"],
+            })
+        return json.dumps(models)
+
+    @Slot(result=str)
     def get_vram_info(self):
-        """Return JSON string with VRAM info + model estimation constants."""
+        """Return JSON string with VRAM info + model estimation constants for the active model."""
         info = get_initial_vram_info()
+        profile = get_active_model_profile()
 
         info.update({
-            "total_layers": MODEL_TOTAL_LAYERS,
-            "per_layer_mb": MODEL_PER_LAYER_MB,
-            "kv_per_token_per_layer_mb": KV_PER_TOKEN_PER_LAYER_MB,
+            "total_layers": profile["total_layers"],
+            "per_layer_mb": profile["per_layer_mb"],
+            "kv_per_token_per_layer_mb": profile["kv_per_token_per_layer_mb"],
             "overhead_mb": VRAM_FIXED_OVERHEAD_MB,
             "ctx_min": CTX_MIN,
             "ctx_max": CTX_MAX,
@@ -301,11 +320,12 @@ class Bridge(QObject):
 
     @Slot(result=str)
     def get_model_settings(self):
-        """Return JSON string with current n_gpu_layers and n_ctx."""
+        """Return JSON string with current n_gpu_layers, n_ctx, and model_key."""
         llm_cfg = config.get("llm", {})
         return json.dumps({
             "n_gpu_layers": llm_cfg.get("n_gpu_layers", 0),
             "n_ctx": llm_cfg.get("n_ctx", 8192),
+            "model_key": llm_cfg.get("model_key", DEFAULT_MODEL_KEY),
         })
 
     @Slot(result=str)
