@@ -94,7 +94,8 @@ class SplashWidget(QWidget):
 
             img_painter = QPainter(self._cached_image)
             img_painter.setRenderHint(QPainter.Antialiasing)
-            self.renderer.render(img_painter)
+            # Render SVG scaled to fit the buffer (not at native size, which would clip)
+            self.renderer.render(img_painter, QRectF(0, 0, self.logo_width, self.logo_height))
             img_painter.end()
 
         # Final draw to screen with the 10px margin
