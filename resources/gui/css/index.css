@@ -212,3 +212,52 @@ input[type="range"]:disabled {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
 }
+
+/* ── Responsive: Stack panels vertically on narrow viewports ── */
+@media (max-width: 700px) {
+    body {
+        flex-direction: column;
+    }
+
+    #chat-frame {
+        width: 100% !important;
+        min-width: 0;
+        height: 50vh;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    #graph-frame {
+        height: 50vh;
+    }
+
+    .modal-container {
+        max-width: 90vw;
+        padding: 18px;
+    }
+}
+
+@media (max-width: 500px) {
+    #chat-frame {
+        height: 60vh;
+    }
+
+    #graph-frame {
+        height: 40vh;
+    }
+
+    .modal-container {
+        max-width: 95vw;
+        padding: 14px;
+        gap: 14px;
+    }
+
+    .modal-title {
+        font-size: 14px;
+    }
+
+    #settings-modal {
+        padding: 10px;
+    }
+}
+

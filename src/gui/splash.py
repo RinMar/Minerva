@@ -23,16 +23,24 @@ class SplashWidget(QWidget):
         native_size = self.renderer.defaultSize()
         aspect_ratio = native_size.height() / native_size.width()
 
-        # 2. Calculate logo dimensions
+        # 2. Clamp base_width to fit smaller screens (≤60% of smallest screen dimension)
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        if screen:
+            geom = screen.availableGeometry()
+            max_allowed = int(min(geom.width(), geom.height()) * 0.6)
+            base_width = min(base_width, max_allowed)
+
+        # 3. Calculate logo dimensions
         self.logo_width = base_width
         self.logo_height = int(base_width * aspect_ratio)
 
-        # 3. Add a 10px safety margin to isolate the logo from the physical window edge
+        # 4. Add a 10px safety margin to isolate the logo from the physical window edge
         self.margin = 10
         window_width = self.logo_width + (self.margin * 2)
         window_height = self.logo_height + (self.margin * 2)
 
-        # 4. Setup Window Flags: Tailor for each platform
+        # 5. Setup Window Flags: Tailor for each platform
         if sys.platform == "win32":
             # Aggressive flags to bypass Windows 11 DWM decorations
             self.setWindowFlags(
@@ -50,19 +58,19 @@ class SplashWidget(QWidget):
                 Qt.FramelessWindowHint
             )
 
-        # 5. Enable Translucency
+        # 6. Enable Translucency
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_NoSystemBackground)
         self.setStyleSheet("background: transparent; border: none;")
 
-        # 6. Initialize Image Cache
+        # 7. Initialize Image Cache
         self._cached_image = None
 
-        # 7. Sizing and Positioning
+        # 8. Sizing and Positioning
         self.resize(window_width, window_height)
         self.center_on_screen()
 
-        # 8. Win32 Overwolf-style Fix: Surgical DWM Attribute Suppression
+        # 9. Win32 Overwolf-style Fix: Surgical DWM Attribute Suppression
         # We pass the internal winId as an integer to the Win32 utility
         suppress_native_window_decorations(int(self.winId()))
 

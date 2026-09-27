@@ -23,6 +23,7 @@ class MainWindow(QMainWindow):
         self.user_name = user_name
         self.setWindowTitle(f"Minerva — Knowledge Graph ({self.user_name})")
         self.setWindowIcon(QIcon(get_resource_path("resources/logo.svg")))
+        self.setMinimumSize(480, 360)
 
         self.web = QWebEngineView()
 
