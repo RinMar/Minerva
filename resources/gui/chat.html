@@ -53,6 +53,20 @@
         </div>
     </div>
 
+    <!-- Custom Delete Confirmation Modal -->
+    <div id="delete-modal" class="custom-modal-backdrop" onclick="closeDeleteModalIfOutside(event)">
+        <div class="custom-modal-container" onclick="event.stopPropagation()">
+            <div class="custom-modal-title">🗑️ Delete Profile</div>
+            <div class="custom-modal-body">
+                Are you sure you want to delete profile <strong id="delete-target-name"></strong>? All associated memory data will be permanently removed.
+            </div>
+            <div class="custom-modal-actions">
+                <button class="custom-modal-btn cancel" onclick="closeDeleteModal()">Cancel</button>
+                <button class="custom-modal-btn delete" id="confirm-delete-btn" onclick="executePendingDelete()">Delete Profile</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/chat.js"></script>
 </body>
 </html>

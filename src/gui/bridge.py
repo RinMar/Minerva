@@ -238,6 +238,68 @@ class Bridge(QObject):
                     save_last_user(self.user_id, self.user_name)
                     self.profile_changed.emit(self.user_id, self.user_name)
 
+    @Slot(str)
+    def delete_user(self, user_name):
+        """Delete a user profile and all associated data from the database."""
+        if not user_name:
+            return
+
+        with get_session() as session:
+            target_user = session.query(User).filter_by(name=user_name).first()
+            if not target_user:
+                print(f"[GUI] Delete request failed: user '{user_name}' not found.")
+                return
+
+            target_id = target_user.id
+            is_active_user = (self.user_name == user_name or self.user_id == target_id)
+
+            # Get full list of users before deletion to find the user above if active
+            all_users = session.query(User).order_by(User.id).all()
+            target_index = -1
+            for idx, u in enumerate(all_users):
+                if u.id == target_id:
+                    target_index = idx
+                    break
+
+            # Cascade delete memory records
+            from src.memory.db import EntityNode, GraphEdge, EmbeddingIndex
+            session.query(EmbeddingIndex).filter_by(user_id=target_id).delete()
+            session.query(GraphEdge).filter_by(user_id=target_id).delete()
+            session.query(EntityNode).filter_by(user_id=target_id).delete()
+
+            # Delete user record
+            session.delete(target_user)
+            session.commit()
+            print(f"[GUI] Deleted user '{user_name}' (ID: {target_id}) and associated memory records.")
+
+            # Query remaining users
+            remaining_users = session.query(User).order_by(User.id).all()
+
+            if is_active_user:
+                if not remaining_users:
+                    # Create fresh default user profile if no users remain
+                    new_u = User(name="User")
+                    session.add(new_u)
+                    session.commit()
+                    next_user_id = new_u.id
+                    next_user_name = new_u.name
+                    print(f"[GUI] Last user deleted. Created fresh default profile 'User' (ID: {next_user_id}).")
+                else:
+                    # Select the user above it in the list (index - 1), else top remaining user (index 0)
+                    next_idx = max(0, target_index - 1)
+                    if next_idx >= len(remaining_users):
+                        next_idx = len(remaining_users) - 1
+                    next_user = remaining_users[next_idx]
+                    next_user_id = next_user.id
+                    next_user_name = next_user.name
+                    print(f"[GUI] Active user deleted. Switching to profile above: '{next_user_name}' (ID: {next_user_id}).")
+
+                self.user_id = next_user_id
+                self.user_name = next_user_name
+                save_last_user(self.user_id, self.user_name)
+                self.update_user(self.user_id, self.user_name)
+                self.profile_changed.emit(self.user_id, self.user_name)
+
     @Slot()
     def handle_settings_click(self):
         """Called from JS when the settings button is clicked."""

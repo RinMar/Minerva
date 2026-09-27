@@ -167,13 +167,14 @@ NEVER leave conflicting edges or duplicate entities in the graph.
 ## Triplet Construction Rules (IMPORTANT)
 
 - ALWAYS convert facts into simple triplets:
-  - head = subject (User or name)
+  - head = subject ("User" or specific entity name)
   - type = relation (short verb phrase)
   - tail = object
 
 Examples of structure:
-- ("Entity", "is", "Value")
-- ("Source", "working on", "Target")
+- ("User", "has sister", "Sarah")
+- ("Sarah", "moved to", "Berlin")
+- ("User", "working on", "Hyperion")
 
 Rules:
 - Keep triplets simple and literal
@@ -191,10 +192,9 @@ If user information is contradictory, conflicting, or unclear:
 
 ## Identity Handling (STRICT)
 
-- "I am X" = absolute truth
-- Immediately bind User → X
-- Update ALL relevant facts replacing "User" with X
-- Accept user statements about their identity as absolute truth
+- The user is represented by the `"User"` entity node.
+- When personal facts or relations are mentioned using first-person pronouns ("my", "I", "me"), link the fact to `"User"` (e.g., `{"head": "User", "type": "relation", "tail": "Entity"}`).
+- "I am X" = absolute truth: bind `"User"` → X and update existing facts replacing "User" with X.
 
 ---
 

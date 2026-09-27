@@ -1,95 +1,153 @@
 # Minerva
 
-Minerva is an experimental, privacy-first, Python-based AI assistant. It leverages local Large Language Models (LLMs) to converse, learn, and dynamically adapt to the user over time—all while keeping your data strictly on your own device. It is currently in heavy development and not ready for production use. Contributions welcome!
+Minerva is an experimental, privacy-first personal AI assistant built in Python. It leverages local Large Language Models (LLMs) via `llama.cpp` to converse, learn, and dynamically build a long-term memory about the user—all while keeping your data 100% private and stored locally on your device.
+
+---
 
 ## Demo
-The graph is updated in real-time as the AI learns about you.
+The interactive Knowledge Graph auto-updates in real-time as Minerva learns facts during conversation:
 ![Demo](demo.gif)
 
-## Architecture & Features
+---
 
-Minerva operates on a **Tool-Based Memory Architecture** rather than passively summarizing chat logs. 
-When conversing, the LLM is equipped with advanced `<think>` capabilities and two core tools: `retrieve` and `manage_memory`.
+## Key Features & Architecture
 
-- **Active Retrieval (`retrieve`)**: Minerva natively indexes all your facts into a local SQLite database and vector index, bridged via an Entity Knowledge Graph. When you ask a question about your past or personal life, Minerva pauses text generation, calls the retrieval tool via XML tags, fetches semantic matches and topological `FactEdge` neighbors, and seamlessly injects the context back into the conversation thread to synthesize a perfect response.
-- **Asynchronous Storage (`manage_memory`)**: Whenever Minerva learns new facts about you (or old facts change) during a chat, she proactively issues a multi-element JSON array payload to store, update, or delete them. Crucially, the active conversational LLM natively formats the topological `FactEdge` triplets directly inside the tool call. At the end of the generator stream, a background `MemoryOrchestrator` thread securely catches these pre-mapped relation chains, automatically handling fuzzy string resolutions and computing vector embeddings instantly, bypassing the need for heavy offline extraction pipelines.
+Minerva operates on an **Active Tool-Based Memory Architecture** rather than passively summarizing chat logs. During conversation, the LLM utilizes thinking capabilities (`<think>`) and mid-stream XML tool calls to retrieve knowledge or mutate its memory graph.
 
-## Core Modules
-- **`src.config`**: Centralized configuration and prompt schema loading.
-- **`src.utils`**: General utility functions like semantic similarities and standardized short-ID generation.
-- **`src.memory.db`**: Unified SQLAlchemy ORM layer handling both active DB connections and schema models (`EntityNode`, `GraphEdge`, `EmbeddingIndex`).
-- **`src.memory.orchestrator`**: Background queue manager dealing with the dense extraction/graph expansion work off the main thread.
-- **`src.models.rag_chat`**: The intelligent conversation interceptor acting as the application entry point.
+- **Mid-Stream Tool Interception (`RAGChat`)**: 
+  Unlike traditional static RAG pipelines that fetch context *before* prompt generation, Minerva natively intercepts `<tool>...</tool>` XML tags during token generation. Generation pauses, the tool (`retrieve` or `manage_memory`) executes, the exact output is injected back into the context, and generation seamlessly resumes.
+- **Hybrid Entity Knowledge Graph + Vector DB**:
+  - **Graph Topology**: Facts are stored as interconnected entities (`EntityNode`) and directional relations (`GraphEdge`) in a local SQLite database.
+  - **Vector Embeddings**: Both entity nodes and relational edges are indexed using SentenceTransformers (`paraphrase-multilingual-MiniLM-L12-v2`).
+  - **Graph-Expanded Retrieval**: Semantic search results trigger topological graph expansion (`expand_nodes`) up to N hops, followed by neural reranking with a CrossEncoder (`ms-marco-MiniLM-L-6-v2`).
+- **Dynamic Memory Operations (`manage_memory`)**:
+  When Minerva learns new details or updates old information, she issues structured JSON commands to create, update, or delete entity nodes and relational triplets in real-time.
+- **Interactive vis.js Knowledge Graph**:
+  The PySide6 desktop GUI features a dual-panel layout: a streaming chat interface on the left and an auto-refreshing `vis.js` graph visualization on the right.
+- **Multi-Model Routing & Hardware Management**:
+  - **Model Profiles**: Switch between different GGUF models (e.g. `Qwen3.5 9B` for quality vs `Qwen3.5 4B` for speed) directly from the GUI Settings modal.
+  - **VRAM Estimation**: Proactively probes system GPU memory (via PyTorch CUDA or Win32 DXGI) to automatically optimize GPU offload layers (`n_gpu_layers`) and context window (`n_ctx`), preventing Out-Of-Memory (OOM) crashes.
+  - **Auto-Downloader**: Automatically downloads and resumes GGUF models from HuggingFace Hub with streaming chunk support.
+
+---
+
+## Project Structure & Core Modules
+
+```
+src/
+├── chat.py                 # High-level API entry point for RAGChat
+├── config.py               # Configuration manager, model registry & TOML persistence
+├── paths.py                # Resource path resolver and AppData directory manager
+├── run.py                  # Desktop application runner (Splash screen + Main Window)
+├── memory/
+│   ├── db.py               # SQLAlchemy ORM schemas (EntityNode, GraphEdge, EmbeddingIndex, User)
+│   ├── store.py            # Graph DB mutations (triplet ingestion, entity/edge upserts & deletes)
+│   └── retrieve.py         # Hybrid search engine (Vector similarity + N-hop graph expansion + Reranking)
+├── models/
+│   ├── base_llm.py         # Thread-safe llama-cpp-python wrapper (CustomLLM)
+│   ├── downloader.py       # Resumable HuggingFace Hub GGUF model downloader
+│   ├── embeddings.py       # Lazy-loaded SentenceTransformer & CrossEncoder models
+│   ├── rag_chat.py         # Core conversational RAG interceptor & tool parsing engine
+│   └── tools.py            # Tool execution handlers for `retrieve` and `manage_memory`
+├── gui/
+│   ├── main.py             # PySide6 MainWindow (QWebEngineView + QWebChannel integration)
+│   ├── bridge.py           # Python <-> JS WebChannel bridge (streaming slots, settings, model init)
+│   ├── splash.py           # Auto-centering and auto-scaling splash screen window
+│   └── stream_parser.py    # State machine for parsing <think> tags & <action:TOOL> UI events
+└── utils/
+    ├── vram.py             # GPU VRAM detection & safe layer/context memory profiler
+    ├── win32.py            # Windows DXGI/WMI hardware memory probing fallback
+    └── general.py          # Helper utilities (cosine similarity, short ID hashing)
+```
+
+---
 
 ## Installation
 
-Ensure you have a modern GPU and Python 3.10+ installed.
+### Prerequisites
+- Python 3.10+
+- Windows or Linux
+- A GPU with CUDA or Vulkan support is recommended for best performance.
 
+### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-To enable GPU acceleration via PyTorch with CUDA:
-
+### 2. Enable GPU Acceleration for PyTorch
 ```bash
 pip3 install --upgrade --ignore-installed torch torchvision --index-url https://download.pytorch.org/whl/cu126
 ```
-### For llama-cpp-python:
-To build llama-cpp-python from source on Windows, you need to have Visual Studio 2022 with C++ build tools installed.
 
-With CUDA:
+### 3. Build `llama-cpp-python` with Hardware Offloading
+
+To build `llama-cpp-python` from source on Windows, you need to have **Visual Studio 2022 with C++ build tools** installed.
+
+#### With CUDA:
 Make sure you have the CUDA toolkit installed and configured for your system. Multiple versions may lead to silent failures. Use `nvcc --version` to check your current version.
 
-For Windows:
-```powershell
-$env:CMAKE_ARGS="-DGGML_CUDA=on"; pip install --ignore-installed --no-cache-dir llama-cpp-python
-```
-For Linux:
-```bash
-CMAKE_ARGS="-DGGML_CUDA=on" pip install --ignore-installed --no-cache-dir llama-cpp-python
-```
-With Vulkan:
+- **Windows (PowerShell):**
+  ```powershell
+  $env:CMAKE_ARGS="-DGGML_CUDA=on"; pip install --ignore-installed --no-cache-dir llama-cpp-python
+  ```
+- **Linux:**
+  ```bash
+  CMAKE_ARGS="-DGGML_CUDA=on" pip install --ignore-installed --no-cache-dir llama-cpp-python
+  ```
+
+#### With Vulkan:
 Make sure you have the Vulkan SDK installed and configured for your system. Multiple versions may lead to silent failures. Use `vulkaninfo` to check your current version. On Windows, you will also need the Windows SDK.
-For Windows:
-```powershell
-$env:CMAKE_ARGS="-DGGML_VULKAN=on"; pip install --ignore-installed --no-cache-dir llama-cpp-python
-```
-For Linux:
-```bash
-CMAKE_ARGS="-DGGML_VULKAN=on" pip install --ignore-installed --no-cache-dir llama-cpp-python
-```
 
-*Note: Installation of `llama-cpp-python` with CUDA bindings can take up to 30 minutes to compile, depending on your system configuration. Please be patient and trust the process!*
+- **Windows (PowerShell):**
+  ```powershell
+  $env:CMAKE_ARGS="-DGGML_VULKAN=on"; pip install --ignore-installed --no-cache-dir llama-cpp-python
+  ```
+- **Linux:**
+  ```bash
+  CMAKE_ARGS="-DGGML_VULKAN=on" pip install --ignore-installed --no-cache-dir llama-cpp-python
+  ```
 
-## build
-```bash
-pyinstaller --noconfirm Minerva.spec
-```
+> 💡 *Note: Installation of `llama-cpp-python` with CUDA/Vulkan bindings compiles native C++/CUDA code and can take up to 30 minutes depending on your system configuration. Please be patient while it compiles!*
+
+---
 
 ## Usage
 
-Start your personal assistant by running:
+### Running the Desktop App
+Launch Minerva by running:
 ```bash
 python -m src.run
 ```
 
-### Configuration
-All model hyperparameters (context window, batch sizes, mmaps) and the model repo/filename are managed centrally in `config.toml`. You can modify this file to easily switch from the default `Qwen3-8B-GGUF` model to something else without touching any Python code.
+### Configuration & Settings
+You can select models and adjust hardware settings directly in the GUI **Settings Modal**, or edit `config.toml` manually:
+```toml
+[llm]
+model_key = "qwen3.5-9b"
+n_ctx = 8192
+n_gpu_layers = 0
+n_batch = 512
+use_mmap = true
+use_mlock = true
+verbose = false
+```
 
 ### Programmatic Usage
-You can easily wrap Minerva in your own applications (like a Discord bot or FastAPI server) using the `Chat` class:
+You can integrate Minerva into your own applications using the `Chat` wrapper:
 ```python
 from src.chat import Chat
 
 assistant = Chat()
-# Automatically hooks into RAG capabilities and returns a generator
-for token in assistant.send_message("Hello Minerva!", stream=True):
+# Stream responses with active RAG & tool execution
+for token in assistant.send_message("What do you know about my sister Sarah?", stream=True):
     print(token, end="", flush=True)
 ```
 
+---
+
 ## Example Testing Prompts
 
-Use these natural conversation prompts to test Minerva's active memory storage, knowledge graph extraction (`manage_memory`), and multi-hop retrieval (`retrieve`).
+Use these natural conversation prompts to test Minerva's active memory storage (`manage_memory`), graph building, and multi-hop retrieval (`retrieve`).
 
 ### Scenario 1: Family, Locations & Pets
 **Tell Minerva:**
@@ -125,17 +183,21 @@ Use these natural conversation prompts to test Minerva's active memory storage, 
 - *"Why do David and I avoid seafood places?"*
 - *"Who goes to Osteria Del Corso with me?"*
 
+---
+
 ## Testing
 
-The Minerva test suite strictly isolates your production `.db` files from its operations by booting isolated `sqlite:///:memory:` instances for the assertions.
+The Minerva test suite isolates test operations using transient `sqlite:///:memory:` database instances.
 
-To run the entire test suite (including graph building, semantic deletion, and RAG chat mechanics), use `pytest`:
+To run the complete unit test suite:
 ```bash
-pytest tests/
+python -m pytest tests/
 ```
 
-## License
-This project is open source (MIT).
+---
 
-It uses PySide6 (Qt for Python), which is licensed under the LGPL.
-Users may replace or modify the Qt/PySide components.
+## License
+
+This project is licensed under the **MIT License**.
+
+It uses **PySide6 (Qt for Python)**, which is licensed under LGPLv3.

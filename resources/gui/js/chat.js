@@ -184,15 +184,27 @@ function toggleProfileDropdown() {
                 info.innerHTML = '👤 <span class="user-name-text">' + u + '</span>';
                 item.appendChild(info);
 
+                const actions = document.createElement('div');
+                actions.className = 'user-actions';
+
                 const edit = document.createElement('div');
                 edit.className = 'edit-icon';
                 edit.innerHTML = '✏️';
                 edit.title = 'Rename Profile';
                 edit.onclick = (e) => startRename(e, u);
-                item.appendChild(edit);
+                actions.appendChild(edit);
+
+                const del = document.createElement('div');
+                del.className = 'delete-icon';
+                del.innerHTML = '🗑️';
+                del.title = 'Delete Profile';
+                del.onclick = (e) => confirmDelete(e, u);
+                actions.appendChild(del);
+
+                item.appendChild(actions);
 
                 item.onclick = function(e) {
-                    if (e.target.closest('.edit-icon') || e.target.closest('.rename-input')) return;
+                    if (e.target.closest('.user-actions') || e.target.closest('.rename-input')) return;
                     getBridge().switch_profile(u);
                     toggleProfileDropdown();
                 };
@@ -205,6 +217,54 @@ function toggleProfileDropdown() {
         document.getElementById('add-profile-input-area').style.display = 'none';
     }
 }
+
+var pendingDeleteUser = null;
+
+function confirmDelete(event, userName) {
+    event.stopPropagation();
+    pendingDeleteUser = userName;
+    
+    var nameSpan = document.getElementById('delete-target-name');
+    if (nameSpan) {
+        nameSpan.textContent = "'" + userName + "'";
+    }
+    
+    var modal = document.getElementById('delete-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeDeleteModal() {
+    pendingDeleteUser = null;
+    var modal = document.getElementById('delete-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function closeDeleteModalIfOutside(event) {
+    if (event.target.id === 'delete-modal') {
+        closeDeleteModal();
+    }
+}
+
+function executePendingDelete() {
+    if (pendingDeleteUser) {
+        let bridge = getBridge();
+        if (bridge) {
+            bridge.delete_user(pendingDeleteUser);
+            toggleProfileDropdown();
+        }
+    }
+    closeDeleteModal();
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeDeleteModal();
+    }
+});
 
 function startRename(event, oldName) {
     event.stopPropagation();

@@ -94,11 +94,21 @@ class MainWindow(QMainWindow):
             edge_data = []
 
             for node in nodes:
-                node_data.append({
+                is_user_node = node.name.lower() in ("user", self.user_name.lower())
+                n_dict = {
                     "id": str(node.id),
                     "label": node.name,
                     "title": node.text or ""
-                })
+                }
+                if is_user_node:
+                    n_dict["color"] = {
+                        "background": "#ec4899",
+                        "border": "#db2777",
+                        "highlight": {"background": "#f472b6", "border": "#ec4899"},
+                        "hover": {"background": "#f472b6", "border": "#ec4899"}
+                    }
+                    n_dict["size"] = 26
+                node_data.append(n_dict)
 
             for edge in edges:
                 edge_data.append({

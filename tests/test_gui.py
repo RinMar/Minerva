@@ -128,6 +128,49 @@ class TestGUIBridge(unittest.TestCase):
                     mock_custom_llm.assert_called_once()
                     self.assertTrue(len(warnings) > 0)
 
+    @patch('src.gui.bridge.save_last_user')
+    def test_delete_user_switching_and_fallback(self, mock_save_user):
+        """Test deleting active/inactive users and fallback to default user when last user is deleted."""
+        from src.memory.db import get_session, User, EntityNode, GraphEdge
+        
+        # Create 3 users in test DB
+        with get_session() as session:
+            session.query(User).delete()
+            u1 = User(name="User1")
+            u2 = User(name="User2")
+            u3 = User(name="User3")
+            session.add_all([u1, u2, u3])
+            session.commit()
+            u1_id, u2_id, u3_id = u1.id, u2.id, u3.id
+
+        self.bridge.initialize_assistant = MagicMock()
+
+        # Case 1: Delete non-active user (User3 when active is User2)
+        self.bridge.user_id = u2_id
+        self.bridge.user_name = "User2"
+        self.bridge.delete_user("User3")
+
+        with get_session() as session:
+            remaining = [u.name for u in session.query(User).order_by(User.id).all()]
+            self.assertEqual(remaining, ["User1", "User2"])
+        self.assertEqual(self.bridge.user_name, "User2")
+
+        # Case 2: Delete active user (User2 when active is User2) -> switches to User1 (above it)
+        self.bridge.delete_user("User2")
+
+        with get_session() as session:
+            remaining = [u.name for u in session.query(User).order_by(User.id).all()]
+            self.assertEqual(remaining, ["User1"])
+        self.assertEqual(self.bridge.user_name, "User1")
+
+        # Case 3: Delete last remaining user (User1) -> creates fresh default User profile
+        self.bridge.delete_user("User1")
+
+        with get_session() as session:
+            remaining = [u.name for u in session.query(User).order_by(User.id).all()]
+            self.assertEqual(remaining, ["User"])
+        self.assertEqual(self.bridge.user_name, "User")
+
 
 if __name__ == "__main__":
     unittest.main()
